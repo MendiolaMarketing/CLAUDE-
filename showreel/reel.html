@@ -474,6 +474,7 @@ function sphere(ctx, t) {
   });
   pts.sort((a, b) => b[0][2] - a[0][2]);
   for (const [q, i, a] of pts) {
+    if (f + q[2] * R < 150) continue;
     const pz = f / (f + q[2] * R); const x = CX + q[0] * R * pz, y = CY + q[1] * R * pz;
     const depth = clamp((1 - q[2]) / 2);
     ctx.globalAlpha = (.25 + .75 * depth) * a * (1 - boom * .9);
