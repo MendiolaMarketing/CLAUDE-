@@ -1,0 +1,415 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>El Diván Abierto — Motion</title>
+<style>
+  @font-face { font-family: 'DivanScript'; src: url('fonts/GreatVibes-Regular.ttf') format('truetype'); }
+  html,body{margin:0;background:#000;}
+  canvas{display:block;}
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script>
+/* =========================================================================
+   EL DIVÁN ABIERTO — motion graphics de texto
+   1080x1920 / 30fps / 00:45:13 (1363 frames). Negro fuera de los bloques.
+   Timecodes en mm:ss:ff (frames a 30fps). Todo es función pura del frame.
+   ========================================================================= */
+const W = 1080, H = 1920, CX = W / 2;
+const FPS = 30;
+const tc = s => { const [m, sec, f] = s.split(':').map(Number); return (m * 60 + sec) * FPS + f; };
+const FRAMES = tc('00:45:13');
+
+// Paleta de marca
+const C = { olive: '#99A68A', lila: '#938698', cream: '#E9E8D3', ink: '#F5F3EA' };
+const SANS = '"Inter Display","Inter",sans-serif';   // sustituto de Helvetica Now
+const SCRIPT = '"DivanScript",cursive';              // sustituto de Citadel Script
+
+// ---------- math ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: x => 1 - Math.pow(1 - x, 3),
+  inCubic: x => x * x * x,
+  inOutCubic: x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+  outQuint: x => 1 - Math.pow(1 - x, 5),
+  outExpo: x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x),
+  inOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2,
+  outBack: x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); },
+};
+function hash(a, b = 0) {
+  let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+
+// ---------- text helpers ----------
+function setFont(ctx, size, weight = 700, family = SANS, track = 0) {
+  ctx.font = `${weight} ${size}px ${family}`; ctx.letterSpacing = track + 'px';
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+}
+function measure(ctx, s) { return ctx.measureText(s).width; }
+
+/* Palabras que suben desde una máscara (kinetic type clásico).
+   words: string; x: inicio (align 'left') o centro (align 'center'). */
+function riseWords(ctx, text, x, base, size, color, u, t0, o = {}) {
+  const { weight = 700, stagger = .09, dur = .55, align = 'center', track = -1, alpha = 1, blur = 0 } = o;
+  ctx.save();
+  setFont(ctx, size, weight, SANS, track);
+  const words = text.split(' ');
+  const space = measure(ctx, ' ');
+  const widths = words.map(w => measure(ctx, w));
+  const total = widths.reduce((a, b) => a + b, 0) + space * (words.length - 1);
+  let cx = align === 'center' ? x - total / 2 : x;
+  ctx.beginPath(); ctx.rect(-200, base - size * 1.05, W + 400, size * 1.35); ctx.clip();
+  words.forEach((w, i) => {
+    const p = E.outExpo(prog(u, t0 + i * stagger, t0 + i * stagger + dur));
+    if (p > 0) {
+      ctx.globalAlpha = alpha * clamp(p * 1.6);
+      if (blur) ctx.filter = `blur(${(1 - p) * blur}px)`;
+      ctx.fillStyle = color;
+      ctx.fillText(w, cx, base + (1 - p) * size * 1.15);
+      ctx.filter = 'none';
+    }
+    cx += widths[i] + space;
+  });
+  ctx.restore();
+  return total;
+}
+
+/* Palabras que emergen desde el desenfoque (para "sin darnos cuenta"). */
+function focusWords(ctx, text, x, base, size, color, u, t0, o = {}) {
+  const { weight = 700, stagger = .16, dur = .7, track = -1, alpha = 1, maxBlur = 26 } = o;
+  ctx.save();
+  setFont(ctx, size, weight, SANS, track);
+  const words = text.split(' ');
+  const space = measure(ctx, ' ');
+  const widths = words.map(w => measure(ctx, w));
+  const total = widths.reduce((a, b) => a + b, 0) + space * (words.length - 1);
+  let cx = x - total / 2;
+  words.forEach((w, i) => {
+    const p = E.outCubic(prog(u, t0 + i * stagger, t0 + i * stagger + dur));
+    if (p > 0) {
+      ctx.globalAlpha = alpha * p;
+      ctx.filter = `blur(${(1 - p) * maxBlur}px)`;
+      ctx.fillStyle = color;
+      const s = lerp(1.18, 1, p);
+      ctx.save(); ctx.translate(cx + widths[i] / 2, base - size * .35); ctx.scale(s, s);
+      ctx.fillText(w, -widths[i] / 2, size * .35);
+      ctx.restore();
+      ctx.filter = 'none';
+    }
+    cx += widths[i] + space;
+  });
+  ctx.restore();
+  return { total, left: x - total / 2 };
+}
+
+// Puntos suspensivos animados (aparecen uno a uno y respiran)
+function ellipsis(ctx, x, base, size, color, u, t0) {
+  for (let k = 0; k < 3; k++) {
+    const p = E.outBack(prog(u, t0 + k * .16, t0 + k * .16 + .35));
+    if (p <= 0) continue;
+    const breath = 1 + .18 * Math.sin((u - t0) * 5 - k * 1.1) * clamp((u - t0 - .6) * 2);
+    ctx.save();
+    ctx.globalAlpha = clamp(p);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x + k * size * .32 + size * .08, base - size * .07, size * .068 * p * breath, 0, Math.PI * 2);
+    ctx.fill(); ctx.restore();
+  }
+}
+
+// ---------- atmósfera ----------
+function glow(ctx, x, y, r, color, a) {
+  if (a <= 0) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(color, a)); g.addColorStop(.55, rgba(color, a * .35)); g.addColorStop(1, rgba(color, 0));
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+const grains = [];
+function buildGrain() {
+  for (let k = 0; k < 4; k++) {
+    const c = document.createElement('canvas'); c.width = 540; c.height = 960;
+    const g = c.getContext('2d'); const img = g.createImageData(540, 960);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = hash(i, k * 7 + 3) * 255;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0); grains.push(c);
+  }
+}
+function grain(ctx, f, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = .045 * a; ctx.globalCompositeOperation = 'screen';
+  ctx.drawImage(grains[f % 4], 0, 0, W, H); ctx.restore();
+}
+function signature(ctx, a) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a * .7;
+  setFont(ctx, 20, 500, SANS, 5); ctx.fillStyle = C.ink; ctx.textAlign = 'center';
+  ctx.fillText('EL DIVÁN ABIERTO', CX + 2.5, 1640);
+  ctx.strokeStyle = C.olive; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(CX - 22, 1600); ctx.lineTo(CX + 22, 1600); ctx.stroke();
+  ctx.restore();
+}
+
+/* =========================================================================
+   BLOQUE A — "A lo largo de nuestra historia"   00:05:05 – 00:07:07
+   Una línea de tiempo se dibuja; "historia" se escribe a mano (acento script).
+   ========================================================================= */
+function sceneA(ctx, u, D) {
+  const push = lerp(1, 1.035, u / D);
+  ctx.save(); ctx.translate(CX, 960); ctx.scale(push, push); ctx.translate(-CX, -960);
+  glow(ctx, CX, 960, 620, C.olive, .10 * E.outCubic(prog(u, 0, .8)));
+
+  riseWords(ctx, 'A lo largo de', CX, 880, 76, C.ink, u, .0, { weight: 500, stagger: .07 });
+
+  // "nuestra" + "historia" (script) en la misma línea
+  setFont(ctx, 76, 800, SANS, -1.5);
+  const wN = measure(ctx, 'nuestra');
+  setFont(ctx, 150, 400, SCRIPT, 0);
+  const wH = measure(ctx, 'historia');
+  const gap = 26, total = wN + gap + wH, x0 = CX - total / 2, base2 = 1010;
+  riseWords(ctx, 'nuestra', x0, base2, 76, C.ink, u, .22, { weight: 800, align: 'left', track: -1.5 });
+
+  // escritura a mano: máscara que avanza izquierda→derecha con una "punta" luminosa
+  const pw = E.inOutSine(prog(u, .38, 1.25));
+  if (pw > 0) {
+    const hx = x0 + wN + gap;
+    const edge = hx - 20 + (wH + 50) * pw;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(hx - 30, base2 - 170, edge - (hx - 30), 260); ctx.clip();
+    setFont(ctx, 150, 400, SCRIPT, 0); ctx.fillStyle = C.olive;
+    ctx.shadowColor = rgba(C.olive, .45); ctx.shadowBlur = 24;
+    ctx.fillText('historia', hx, base2 + 8);
+    ctx.restore();
+    if (pw < 1) glow(ctx, edge, base2 - 40, 46, C.cream, .55 * Math.sin(pw * Math.PI));
+  }
+
+  // línea de tiempo con hitos
+  const lp = E.inOutCubic(prog(u, .05, 1.35));
+  const ly = 1095, lx0 = CX - 330, lx1 = lx0 + 660 * lp;
+  if (lp > 0) {
+    ctx.save();
+    const lg = ctx.createLinearGradient(lx0, 0, lx0 + 660, 0);
+    lg.addColorStop(0, rgba(C.lila, 0)); lg.addColorStop(.2, rgba(C.lila, .9)); lg.addColorStop(1, rgba(C.lila, .9));
+    ctx.strokeStyle = lg; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx0, ly); ctx.lineTo(lx1, ly); ctx.stroke();
+    [.3, .55, .8].forEach((k, i) => {
+      const dp = E.outBack(prog(u, .05 + 1.3 * k * .85, .05 + 1.3 * k * .85 + .3));
+      if (dp > 0) { ctx.fillStyle = i === 2 ? C.olive : C.cream; ctx.beginPath(); ctx.arc(lx0 + 660 * k, ly, 5.5 * dp, 0, 7); ctx.fill(); }
+    });
+    ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(lx1, ly, 4, 0, 7); ctx.fill();
+    glow(ctx, lx1, ly, 30, C.cream, .5);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* =========================================================================
+   BLOQUE B — "Aprendemos patrones, forma de resolver conflictos,
+              la manera en que reaccionamos a la situación..."  00:12:01 – 00:18:17
+   ========================================================================= */
+function sceneB(ctx, u, D) {
+  const X = 112;
+  glow(ctx, 860, 760, 760, C.olive, .07 * E.outCubic(prog(u, 0, 1)));
+  glow(ctx, 200, 1350, 640, C.lila, .08 * E.outCubic(prog(u, 3.4, 4.6)));
+
+  // motivo de fondo: círculos concéntricos (patrones) girando lento
+  ctx.save(); ctx.translate(930, 760); ctx.rotate(u * .08);
+  for (let k = 0; k < 9; k++) {
+    const p = E.outCubic(prog(u, .9 + k * .07, 1.8 + k * .07));
+    if (p <= 0) continue;
+    ctx.strokeStyle = rgba(C.olive, .10 * p); ctx.lineWidth = 1.5;
+    ctx.setLineDash([2, 14 + k * 2]);
+    ctx.beginPath(); ctx.arc(0, 0, (80 + k * 58) * lerp(.85, 1, p), 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+
+  const dimAfter = (t) => lerp(1, .62, E.inOutSine(prog(u, t, t + .5)));
+
+  // 1 · Aprendemos
+  riseWords(ctx, 'Aprendemos', X, 640, 124, C.ink, u, 0, { weight: 800, align: 'left', track: -3 });
+  const ul = E.inOutCubic(prog(u, .35, .95));
+  if (ul > 0) { ctx.fillStyle = C.olive; ctx.fillRect(X + 4, 680, 150 * ul, 6); }
+
+  // 2 · patrones, — eco que se repite y se pliega sobre sí mismo
+  const pa = dimAfter(2.35);
+  setFont(ctx, 124, 800, SANS, -3);
+  const echoes = 4;
+  for (let k = echoes; k >= 1; k--) {
+    const open = E.outExpo(prog(u, 1.0 + k * .07, 1.5 + k * .07));
+    const close = E.inOutCubic(prog(u, 1.85, 2.3));
+    const off = k * 128 * open * (1 - close);
+    const a = (1 - k / (echoes + 1)) * .55 * open * (1 - close);
+    if (a <= .002) continue;
+    ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = C.olive; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.rect(0, 680, W, 1300); ctx.clip();
+    ctx.strokeText('patrones,', X, 820 + off); ctx.restore();
+  }
+  riseWords(ctx, 'patrones,', X, 820, 124, C.olive, u, .95, { weight: 800, align: 'left', track: -3, alpha: pa });
+
+  // 3 · forma de resolver conflictos, — trazo enredado que se resuelve en línea recta
+  const pb = dimAfter(3.85);
+  riseWords(ctx, 'forma de resolver', X, 970, 70, C.ink, u, 2.3, { weight: 500, align: 'left', stagger: .08, alpha: pb });
+  const wC = riseWords(ctx, 'conflictos,', X, 1060, 70, C.ink, u, 2.55, { weight: 800, align: 'left', track: -1.5, alpha: pb });
+  const draw = E.inOutCubic(prog(u, 2.55, 3.15));
+  const calm = E.inOutCubic(prog(u, 3.05, 3.75));
+  if (draw > 0) {
+    ctx.save(); ctx.globalAlpha = pb; ctx.strokeStyle = C.lila; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    const N = 90, len = wC - 20;
+    for (let i = 0; i <= N * draw; i++) {
+      const s = i / N;
+      const amp = 22 * (1 - calm);
+      const x = X + 4 + s * len + Math.sin(s * 38) * amp * .9;
+      const y = 1092 + Math.sin(s * 23 + 1.3) * amp + Math.cos(s * 51) * amp * .45;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke(); ctx.restore();
+  }
+
+  // 4 · la manera en que reaccionamos a la situación...
+  const L4 = [['la manera en que', 500, 3.8], ['reaccionamos', 800, 4.15], ['a la situación', 500, 4.5]];
+  L4.forEach(([s, w, t0], i) => {
+    riseWords(ctx, s, X, 1215 + i * 84, 66, i === 1 ? C.cream : C.ink, u, t0, { weight: w, align: 'left', stagger: .08, track: w > 600 ? -1.5 : -.5 });
+  });
+  setFont(ctx, 66, 500, SANS, -.5);
+  ellipsis(ctx, X + measure(ctx, 'a la situación') + 6, 1215 + 2 * 84, 66, C.olive, u, 4.95);
+}
+
+/* =========================================================================
+   BLOQUE C — "sin darnos cuenta y sin entender que ni siquiera son nuestros..."
+   00:38:08 – 00:42:05 — el texto sale del desenfoque; "nuestros" se desprende.
+   ========================================================================= */
+function sceneC(ctx, u, D) {
+  const br = .10 + .03 * Math.sin(u * 2.2);
+  glow(ctx, CX, 980, 700, C.lila, br * E.outCubic(prog(u, 0, 1)));
+
+  focusWords(ctx, 'sin darnos cuenta', CX, 800, 88, C.ink, u, 0, { weight: 800, track: -2 });
+  focusWords(ctx, 'y sin entender', CX, 910, 62, C.ink, u, .85, { weight: 400, alpha: .85, maxBlur: 18 });
+  focusWords(ctx, 'que ni siquiera', CX, 990, 62, C.ink, u, 1.25, { weight: 400, alpha: .85, maxBlur: 18 });
+
+  // separador
+  const sp = E.inOutCubic(prog(u, 1.6, 2.1));
+  if (sp > 0) { ctx.fillStyle = rgba(C.olive, .9); ctx.fillRect(CX - 40 * sp, 1048, 80 * sp, 2); }
+
+  // "son nuestros..." — letras que se desprenden lentamente (no son nuestros)
+  const base = 1180, size = 104;
+  setFont(ctx, size, 800, SANS, -2);
+  const t1 = 'son ', t2 = 'nuestros';
+  const w1 = measure(ctx, t1), w2 = measure(ctx, t2), dotsW = size * .75;
+  const x0 = CX - (w1 + w2 + dotsW) / 2;
+  riseWords(ctx, 'son', x0, base, size, C.ink, u, 1.85, { weight: 800, align: 'left', track: -2 });
+  const drift = E.inOutSine(prog(u, 3.05, D + .6));
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, base - size * 1.05 - 400 * drift, W, size * 1.35 + 800 * drift); ctx.clip();
+  for (let i = 0; i < t2.length; i++) {
+    const lx = x0 + w1 + measure(ctx, t2.slice(0, i));
+    const st = 2.0 + i * .04;
+    const p = E.outExpo(prog(u, st, st + .55));
+    if (p <= 0) continue;
+    const r1 = hash(i, 11) - .5, r2 = hash(i, 29) - .5, r3 = hash(i, 47) - .5;
+    const dx = r1 * 60 * drift, dy = (-25 - hash(i, 5) * 60) * drift + r2 * 16 * drift;
+    ctx.save();
+    ctx.globalAlpha = clamp(p * 1.5) * lerp(1, .45, drift);
+    if (drift > 0) ctx.filter = `blur(${drift * 3 * hash(i, 3)}px)`;
+    const cw = measure(ctx, t2[i]);
+    ctx.translate(lx + cw / 2 + dx, base + (1 - p) * size * 1.15 + dy - size * .35);
+    ctx.rotate(r3 * .5 * drift);
+    ctx.fillStyle = C.lila;
+    ctx.fillText(t2[i], -cw / 2, size * .35);
+    ctx.restore();
+  }
+  ctx.restore();
+  ellipsis(ctx, x0 + w1 + w2 + 4, base, size, C.olive, u, 2.55);
+}
+
+/* =========================================================================
+   BLOQUE D — "por el ambiente en el que estamos"   00:43:20 – 00:45:13
+   Ondas concéntricas envuelven la palabra "ambiente".
+   ========================================================================= */
+function sceneD(ctx, u, D) {
+  const g = E.outCubic(prog(u, 0, 1.2));
+  glow(ctx, CX, 990, 760 * lerp(.4, 1, g), C.olive, .16 * g);
+  glow(ctx, CX, 990, 420 * lerp(.4, 1, g), C.lila, .10 * g);
+  for (let k = 0; k < 5; k++) {
+    const p = E.outCubic(prog(u, k * .12, k * .12 + 1.4));
+    if (p <= 0) continue;
+    const r = lerp(60, 250 + k * 95, p);
+    ctx.save();
+    ctx.strokeStyle = rgba(k % 2 ? C.lila : C.olive, .5 * (1 - p * .6) * (1 - k * .13));
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(CX, 990, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  riseWords(ctx, 'por el', CX, 880, 60, C.ink, u, 0, { weight: 500, stagger: .07 });
+
+  // "ambiente": letras que se abren con tracking y escala
+  const p = E.outExpo(prog(u, .12, .9));
+  if (p > 0) {
+    const track = lerp(-4, 3, p);
+    setFont(ctx, 134, 800, SANS, track);
+    const w = measure(ctx, 'ambiente') - track;
+    ctx.save();
+    ctx.globalAlpha = clamp(p * 1.4);
+    ctx.filter = `blur(${(1 - p) * 14}px)`;
+    ctx.translate(CX, 1000); const s = lerp(1.25, 1, p); ctx.scale(s, s);
+    ctx.fillStyle = C.ink; ctx.shadowColor = rgba(C.olive, .5); ctx.shadowBlur = 40;
+    ctx.fillText('ambiente', -w / 2, 46);
+    ctx.restore();
+  }
+  riseWords(ctx, 'en el que estamos', CX, 1135, 60, C.ink, u, .38, { weight: 500, stagger: .07 });
+}
+
+// ---------- timeline ----------
+const SEGMENTS = [
+  { a: tc('00:05:05'), b: tc('00:07:07'), fn: sceneA, out: .22, inFade: .12 },
+  { a: tc('00:12:01'), b: tc('00:18:17'), fn: sceneB, out: .35, inFade: .15 },
+  { a: tc('00:38:08'), b: tc('00:42:05'), fn: sceneC, out: .35, inFade: .15 },
+  { a: tc('00:43:20'), b: tc('00:45:13'), fn: sceneD, out: .2, inFade: .1 },
+];
+
+const cv = document.getElementById('out');
+const ctx = cv.getContext('2d');
+function drawFrame(f) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.filter = 'none';
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  for (const s of SEGMENTS) {
+    if (f < s.a || f >= s.b) continue;
+    const u = (f - s.a) / FPS, D = (s.b - s.a) / FPS;
+    // salida: leve subida + desenfoque + fundido a negro en el último tramo
+    const o = E.inCubic(prog(u, D - s.out, D - 1 / FPS));
+    const inA = prog(u, 0, s.inFade);
+    const layer = document.createElement('canvas'); layer.width = W; layer.height = H;
+    const lc = layer.getContext('2d');
+    s.fn(lc, u, D);
+    signature(lc, E.outCubic(prog(u, .2, .8)));
+    ctx.save();
+    ctx.globalAlpha = (1 - o) * Math.max(inA, .0001);
+    if (o > 0) ctx.filter = `blur(${o * 12}px)`;
+    ctx.drawImage(layer, 0, -o * 30);
+    ctx.restore();
+    grain(ctx, f, (1 - o) * inA);
+  }
+}
+window.FRAMES = FRAMES; window.FPS = FPS;
+window.renderFrame = f => { drawFrame(f); return cv.toDataURL('image/png'); };
+window.ready = (async () => {
+  await Promise.all([
+    document.fonts.load(`400 150px DivanScript`),
+    document.fonts.load(`800 120px ${SANS}`), document.fonts.load(`500 60px ${SANS}`), document.fonts.load(`400 60px ${SANS}`),
+  ]);
+  buildGrain();
+  return true;
+})();
+</script>
+</body>
+</html>
