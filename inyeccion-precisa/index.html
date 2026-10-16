@@ -113,6 +113,14 @@ body { font-family: 'Inter', system-ui, sans-serif; color: #fff; }
   display: flex; align-items: center; justify-content: center;
 }
 #plate img { width: 800px; height: auto; display: block; }
+#plate1 {
+  position: absolute; width: 520px; height: 330px; left: 280px; top: 555px; border-radius: 32px;
+  background: linear-gradient(170deg, #ffffff 0%, #f3f5f8 60%, #e6e9ee 100%);
+  border: 2px solid rgba(58,141,255,.95);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.6), 0 0 26px rgba(58,141,255,.85), 0 0 80px rgba(58,141,255,.5), 0 0 170px rgba(30,86,160,.5);
+  display: flex; align-items: center; justify-content: center;
+}
+#plate1 img { width: 470px; height: auto; display: block; }
 #cta { top: 1176px; font-weight: 800; font-size: 86px; letter-spacing: -2.6px; line-height: 1.1; }
 #cta .serif { font-size: 108px; letter-spacing: -.5px; }
 #wa { position: absolute; left: 0; right: 0; top: 1440px; display: flex; justify-content: center; }
@@ -189,6 +197,7 @@ body.export #ui { display: none; }
   <div id="beam"></div>
 
   <!-- Escena 1 -->
+  <div id="plate1"><img src="assets/logo.png" alt="Inyección Precisa de Querétaro"></div>
   <div class="txt glow" id="t1">
     <span class="row a">¿QUIERES</span>
     <span class="row b serif">AHORRAR</span>
@@ -258,7 +267,7 @@ function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0
 
 /* ---------- línea de tiempo (s) ---------- */
 const T = {
-  t1In: 0.85, t1Out: [2.72, 3.08],
+  t1In: 0.85, p1In: 1.05, t1Out: [2.72, 3.08],
   t2Word: i => 3.12 + i * 0.16, t2Out: [4.72, 5.08],
   morph: 5.0, t3In: 5.38, draw: 5.4, shine: [6.55, 7.15], spray: 7.0, t3Out: [7.72, 8.04],
   flip: 8.0, t4In: 8.16, dropForm: 8.48, dropFall: [8.78, 9.02], needle: 9.02, alertOn: [8.08, 8.4], alertOff: [9.86, 10.16], t4Out: [9.84, 10.14],
@@ -360,7 +369,7 @@ function inOut(t, tin, out, p = 'soft', dy = 46, s0 = .9) {
 
 /* ---------- render(t) ---------- */
 const els = { orb: $('orb'), beam: $('beam'), card: $('card'), shine: $('shine'), flash: $('flash'), plate: $('plate'), wa: $('wa'), cta: $('cta'),
-  t1: $('t1'), t2: $('t2'), t3: $('t3'), t4: $('t4'), ul: document.querySelector('#t4 .ul'), s5a: $('s5a'), s5b: $('s5b'), sep: $('sep'),
+  t1: $('t1'), p1: $('plate1'), t2: $('t2'), t3: $('t3'), t4: $('t4'), ul: document.querySelector('#t4 .ul'), s5a: $('s5a'), s5b: $('s5b'), sep: $('sep'),
   n5: document.querySelector('#s5a .num'), n20: document.querySelector('#s5b .num'), alert: $('alert'), ambient: $('ambient'),
   words: [...document.querySelectorAll('#t2 .w')], ringsSvg: $('rings'), inf: $('infG'), track: $('infTrack') };
 
@@ -492,6 +501,7 @@ function render(t) {
     const s = lerp(.12, 1, e) * (1 + .06 * ex), y = lerp(-230, 0, e) - 60 * ex;   // emerge del centro (orbe)
     return [o, blur, y, s];
   })());
+  setT(els.p1, ...inOut(t, T.p1In, T.t1Out, 'settle', -40, .7));   // logo sobre el titular
   // escena 2: palabra por palabra
   const t2x = prog(t, ...T.t2Out);
   els.t2.style.visibility = t > T.t2Word(0) - .01 && t2x < 1 ? 'visible' : 'hidden';
