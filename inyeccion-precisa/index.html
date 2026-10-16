@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inyección Precisa · Reel</title>
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; font-style: normal; src: url(assets/fonts/Inter.woff2) format('woff2'); }
+@font-face { font-family: 'Instrument Serif'; font-weight: 400; font-style: italic; src: url(assets/fonts/InstrumentSerif-Italic.woff2) format('woff2'); }
+
+:root {
+  --blue: #3A8DFF; --blue2: #1E56A0; --navy: #0B3A6B; --silver: #BDC0C6; --red: #C10E1A;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+body { font-family: 'Inter', system-ui, sans-serif; color: #fff; }
+
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1080px; height: 1920px;
+  transform-origin: 0 0; overflow: hidden; background: #000;
+}
+.layer { position: absolute; inset: 0; pointer-events: none; }
+
+/* Fondo: negro con degradado muy sutil a azul marino en los bordes */
+#bg {
+  background:
+    radial-gradient(ellipse 95% 70% at 50% 42%, rgba(11,58,107,0) 52%, rgba(11,58,107,.38) 82%, rgba(11,58,107,.62) 100%),
+    #000;
+}
+#grid {
+  background-image: radial-gradient(rgba(189,192,198,.16) 1.4px, transparent 1.6px);
+  background-size: 54px 54px; background-position: 0 0;
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 42%, #000 0%, transparent 75%);
+          mask-image: radial-gradient(ellipse 70% 55% at 50% 42%, #000 0%, transparent 75%);
+  opacity: .5;
+}
+#ambient { background: radial-gradient(circle 620px at 50% 40.6%, rgba(30,86,160,.45), rgba(30,86,160,0) 70%); }
+#alert   { background: radial-gradient(ellipse 90% 70% at 50% 42%, rgba(193,14,26,0) 35%, rgba(193,14,26,.42) 100%); opacity: 0; }
+
+/* Orbe de luz (se transforma en tarjeta) */
+#orb {
+  position: absolute; border-radius: 999px;
+  background: radial-gradient(circle, #fff 0%, #d8e8ff 22%, #3A8DFF 55%, rgba(58,141,255,0) 72%);
+  box-shadow: 0 0 24px 8px rgba(58,141,255,.9), 0 0 80px 26px rgba(30,86,160,.85), 0 0 220px 70px rgba(30,86,160,.45);
+}
+#beam {
+  position: absolute; height: 4px; border-radius: 4px; background: #fff;
+  box-shadow: 0 0 12px 3px #3A8DFF, 0 0 40px 10px #1E56A0, 0 0 110px 30px rgba(30,86,160,.6);
+}
+#flash { position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.95) 0%, rgba(58,141,255,.7) 25%, rgba(30,86,160,.25) 50%, rgba(30,86,160,0) 70%); }
+
+/* Tarjeta 3D */
+#persp { position: absolute; inset: 0; perspective: 1900px; }
+#card  { position: absolute; transform-style: preserve-3d; border-radius: 44px; }
+.face {
+  position: absolute; inset: 0; border-radius: 44px; overflow: hidden;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  background: linear-gradient(165deg, rgba(22,44,82,.92) 0%, rgba(6,14,30,.96) 55%, rgba(3,7,16,.98) 100%);
+  border: 2px solid var(--glow, #3A8DFF);
+  box-shadow: 0 0 34px var(--glowA, rgba(58,141,255,.7)), 0 0 120px var(--glowB, rgba(30,86,160,.55)), inset 0 0 50px var(--glowB, rgba(30,86,160,.45));
+}
+.face.back { transform: rotateY(180deg); }
+.face svg.art { position: absolute; left: 50%; top: 50%; width: 640px; height: 820px; transform: translate(-50%,-50%); overflow: visible; }
+.face .sheen { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,0) 30%); }
+#shine {
+  position: absolute; top: -20%; height: 140%; width: 46%; left: -60%;
+  background: linear-gradient(100deg, rgba(255,255,255,0) 20%, rgba(190,220,255,.22) 42%, rgba(255,255,255,.75) 50%, rgba(190,220,255,.22) 58%, rgba(255,255,255,0) 80%);
+  mix-blend-mode: screen; transform: skewX(-14deg);
+}
+
+/* Tipografía */
+.txt { position: absolute; left: 0; right: 0; text-align: center; will-change: transform, opacity, filter; }
+.glow { text-shadow: 0 0 18px rgba(58,141,255,.55), 0 0 60px rgba(30,86,160,.6); }
+.sans { font-family: 'Inter', sans-serif; }
+.serif { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; color: var(--silver); }
+
+#t1 { top: 960px; transform-origin: 50% 0; }
+#t1 .row { display: block; }
+#t1 .a { font-weight: 900; font-size: 132px; letter-spacing: -2px; line-height: 1; }
+#t1 .b { font-size: 250px; line-height: .86; letter-spacing: -2px; margin: 4px 0 10px; text-shadow: 0 0 22px rgba(189,192,198,.35), 0 0 70px rgba(58,141,255,.55); }
+
+#t2 { top: 1080px; font-weight: 700; font-size: 104px; letter-spacing: -2.5px; line-height: 1.12; }
+#t2 .w { display: inline-block; margin: 0 .12em; }
+#t2 .serif { font-size: 132px; letter-spacing: -1px; }
+
+#t3 { top: 1300px; font-weight: 800; font-size: 100px; letter-spacing: -3px; line-height: 1.1; }
+#t3 .serif { font-size: 128px; letter-spacing: -1px; }
+
+#t4 { top: 1290px; }
+#t4 .l1 { font-weight: 800; font-size: 98px; letter-spacing: -3px; line-height: 1.1; }
+#t4 .l1 .serif { font-size: 124px; letter-spacing: -1px; }
+#t4 .eq { color: var(--red); text-shadow: 0 0 18px rgba(193,14,26,.9), 0 0 50px rgba(193,14,26,.6); }
+#t4 .l2 { display: inline-block; position: relative; margin-top: 14px; font-weight: 600; font-size: 60px; letter-spacing: -1.2px; color: #fff; }
+#t4 .ul { position: absolute; left: 0; right: 0; bottom: -16px; height: 6px; border-radius: 6px; background: var(--red);
+  box-shadow: 0 0 14px rgba(193,14,26,.95), 0 0 40px rgba(193,14,26,.6); transform-origin: 0 50%; }
+
+.stat { position: absolute; width: 520px; text-align: center; }
+.stat .num { font-weight: 900; font-size: 164px; letter-spacing: -6px; line-height: 1; height: 196px; padding-top: 16px;
+  text-shadow: 0 0 16px rgba(58,141,255,.95), 0 0 50px rgba(58,141,255,.75), 0 0 120px rgba(30,86,160,.9); font-variant-numeric: tabular-nums; }
+.stat .lbl { margin-top: 176px; font-weight: 600; font-size: 50px; letter-spacing: -.8px; line-height: 1.12; color: #fff; }
+.stat .lbl .serif { font-size: 60px; letter-spacing: 0; }
+#s5a .lbl { margin-left: 70px; }
+#s5b .lbl { margin-right: 70px; }
+#sep { position: absolute; width: 200px; left: 440px; text-align: center; font-weight: 900; font-size: 190px; line-height: 1; color: var(--red);
+  text-shadow: 0 0 14px rgba(193,14,26,1), 0 0 44px rgba(193,14,26,.8), 0 0 100px rgba(193,14,26,.5); }
+
+#plate {
+  position: absolute; width: 880px; height: 556px; left: 100px; border-radius: 48px;
+  background: linear-gradient(170deg, #ffffff 0%, #f3f5f8 60%, #e6e9ee 100%);
+  border: 3px solid rgba(58,141,255,.95);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.6), 0 0 36px rgba(58,141,255,.85), 0 0 110px rgba(58,141,255,.55), 0 0 240px rgba(30,86,160,.55);
+  display: flex; align-items: center; justify-content: center;
+}
+#plate img { width: 800px; height: auto; display: block; }
+#cta { top: 1176px; font-weight: 800; font-size: 86px; letter-spacing: -2.6px; line-height: 1.1; }
+#cta .serif { font-size: 108px; letter-spacing: -.5px; }
+#wa { position: absolute; left: 0; right: 0; top: 1440px; display: flex; justify-content: center; }
+#wa .pill { display: flex; align-items: center; gap: 30px; padding: 22px 52px 22px 26px; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 2px solid rgba(189,192,198,.38);
+  box-shadow: 0 0 30px rgba(58,141,255,.35), inset 0 0 26px rgba(58,141,255,.15); }
+#wa img { width: 104px; height: 104px; display: block; }
+#wa .num { font-weight: 800; font-size: 80px; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+
+/* Overlay Play */
+#ui { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px); z-index: 10; transition: opacity .3s; }
+#ui.hide { opacity: 0; pointer-events: none; }
+#play { font: 700 22px 'Inter', sans-serif; color: #fff; background: rgba(58,141,255,.18); border: 1.5px solid #3A8DFF;
+  border-radius: 999px; padding: 18px 44px; cursor: pointer; letter-spacing: .5px;
+  box-shadow: 0 0 24px rgba(58,141,255,.6), inset 0 0 18px rgba(58,141,255,.3); }
+#play:hover { background: rgba(58,141,255,.3); }
+body.export #ui { display: none; }
+</style>
+</head>
+<body>
+<!-- Filtros SVG de bloom (feGaussianBlur multicapa) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="bloom" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="b2"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="30" result="b3"/>
+      <feMerge><feMergeNode in="b3"/><feMergeNode in="b2"/><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="bloomS" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="b2"/>
+      <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="1.4"/></filter>
+    <linearGradient id="dropG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff5a63"/><stop offset=".55" stop-color="#C10E1A"/><stop offset="1" stop-color="#5a0309"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="stage">
+  <div class="layer" id="bg"></div>
+  <div class="layer" id="grid"></div>
+  <div class="layer" id="ambient"></div>
+  <div class="layer" id="alert"></div>
+
+  <svg class="layer" id="dust" viewBox="0 0 1080 1920"></svg>
+  <svg class="layer" id="rings" viewBox="0 0 1080 1920"><g filter="url(#bloomS)" id="ringsG"></g></svg>
+
+  <!-- Trayectoria de infinito -->
+  <svg class="layer" id="inf" viewBox="0 0 1080 1920">
+    <g id="infG">
+      <path id="infTrack" fill="none" stroke="#BDC0C6" stroke-width="2"/>
+      <g id="infComets" filter="url(#bloom)"></g>
+    </g>
+  </svg>
+
+  <div class="layer" id="persp">
+    <div id="card">
+      <div class="face front">
+        <div class="sheen"></div>
+        <svg class="art" id="front" viewBox="0 0 640 820"></svg>
+        <div id="shine"></div>
+      </div>
+      <div class="face back">
+        <div class="sheen"></div>
+        <svg class="art" id="back" viewBox="0 0 640 820"></svg>
+      </div>
+    </div>
+  </div>
+  <div id="orb"></div>
+  <div id="beam"></div>
+
+  <!-- Escena 1 -->
+  <div class="txt glow" id="t1">
+    <span class="row a">¿QUIERES</span>
+    <span class="row b serif">AHORRAR</span>
+    <span class="row a">GASOLINA?</span>
+  </div>
+  <!-- Escena 2 -->
+  <div class="txt glow" id="t2"><span class="w">Es</span><span class="w">más</span><span class="w serif">fácil</span><br><span class="w">de</span><span class="w">lo</span><span class="w">que</span><span class="w">crees…</span></div>
+  <!-- Escena 3 -->
+  <div class="txt glow" id="t3">Mantén <span class="serif">limpios</span><br>tus inyectores.</div>
+  <!-- Escena 4 -->
+  <div class="txt" id="t4">
+    <div class="l1 glow">Inyectores <span class="serif">sucios</span> <span class="eq">=</span></div>
+    <div class="l2">más gasto y menos potencia<span class="ul"></span></div>
+  </div>
+  <!-- Escena 5 -->
+  <div class="stat" id="s5a"><div class="num">+5</div><div class="lbl">sucursales<br>en <span class="serif">Querétaro</span></div></div>
+  <div id="sep">·</div>
+  <div class="stat" id="s5b"><div class="num">+20</div><div class="lbl">años<br><span class="serif">respaldándonos</span></div></div>
+  <!-- Escena 6 -->
+  <div id="flash"></div>
+  <div id="plate"><img src="assets/logo.png" alt="Inyección Precisa de Querétaro"></div>
+  <div class="txt glow" id="cta">Mándanos mensaje<br>y agenda tu <span class="serif">limpieza</span></div>
+  <div id="wa"><div class="pill"><img src="assets/whatsapp.png" alt="WhatsApp"><span class="num">442 455 0337</span></div></div>
+</div>
+
+<div id="ui"><button id="play">▶&nbsp; Play</button></div>
+
+<script>
+/* =========================================================================
+   Inyección Precisa de Querétaro — reel 15 s, 1080×1920
+   Todo se calcula como función pura del tiempo: render(t). La reproducción
+   en vivo usa el reloj del AudioContext; la exportación llama __seek(t).
+   ========================================================================= */
+const W = 1080, H = 1920, DUR = 15, CX = 540, CY = 780, Y1 = 960;
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const svgEl = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+/* ---------- utilidades de tiempo / easing ---------- */
+const clamp01 = x => x < 0 ? 0 : x > 1 ? 1 : x;
+const lerp = (a, b, x) => a + (b - a) * x;
+const prog = (t, a, b) => clamp01((t - a) / (b - a));
+const smooth = (a, b, t) => { const x = prog(t, a, b); return x * x * (3 - 2 * x); };
+const eOutCubic = x => 1 - Math.pow(1 - clamp01(x), 3);
+const eInCubic = x => Math.pow(clamp01(x), 3);
+const eInOut = x => { x = clamp01(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+
+/* Resorte físico analítico (masa 1, rigidez k, amortiguamiento c), respuesta al escalón 0→1 */
+const SPR = { bouncy: [210, 13], wobbly: [170, 15], soft: [120, 21], snappy: [280, 30], flip: [150, 15], settle: [230, 27] };
+function spring(dt, [k, c]) {
+  if (dt <= 0) return 0;
+  const w0 = Math.sqrt(k), z = c / (2 * w0);
+  const env = Math.exp(-z * w0 * dt);
+  if (env < 4e-4) return 1;                         // reposo exacto: sin micro‑movimiento
+  if (z < 1) { const wd = w0 * Math.sqrt(1 - z * z); return 1 - env * (Math.cos(wd * dt) + (z * w0 / wd) * Math.sin(wd * dt)); }
+  return 1 - env * (1 + w0 * dt);
+}
+const sp = (t, t0, p = 'soft') => spring(t - t0, SPR[p]);
+/* primer instante en que el resorte alcanza su destino (para sincronizar el "impact") */
+function springArrival(p) { for (let d = 0; d < 2; d += 0.001) if (spring(d, SPR[p]) >= 1) return d; return 0.3; }
+
+const rgb = (a, b, x) => `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], x))).join(',')})`;
+const rgba = (a, b, x, al) => `rgba(${a.map((v, i) => Math.round(lerp(v, b[i], x))).join(',')},${al})`;
+const BLUE = [58, 141, 255], BLUE2 = [30, 86, 160], RED = [193, 14, 26], RED2 = [140, 8, 18];
+
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+/* ---------- línea de tiempo (s) ---------- */
+const T = {
+  t1In: 0.85, t1Out: [2.72, 3.08],
+  t2Word: i => 3.12 + i * 0.16, t2Out: [4.72, 5.08],
+  morph: 5.0, t3In: 5.38, draw: 5.4, shine: [6.55, 7.15], spray: 7.0, t3Out: [7.72, 8.04],
+  flip: 8.0, t4In: 8.16, dropForm: 8.48, dropFall: [8.78, 9.02], needle: 9.02, alertOn: [8.08, 8.4], alertOff: [9.86, 10.16], t4Out: [9.84, 10.14],
+  collapse: [10.0, 10.3], comet: [10.3, 12.0], close: [12.0, 12.34], converge: [12.34, 12.68], count: [10.36, 11.16], s5Out: [12.0, 12.32],
+  flash: [12.5, 12.94], plate: 12.46, cta: 12.6, wa: 12.72, still: 13.0,
+};
+const T1_IMPACT = T.t1In + springArrival('bouncy');
+
+/* ---------- construcción de gráficos ---------- */
+// Partículas de polvo luminoso
+const rnd = mulberry(42);
+const dust = [];
+for (let i = 0; i < 46; i++) {
+  const c = svgEl('circle', { r: (0.8 + rnd() * 2.2).toFixed(2), fill: rnd() < .2 ? '#BDC0C6' : '#3A8DFF' }, $('dust'));
+  dust.push({ c, x: rnd() * W, y: rnd() * H, v: 10 + rnd() * 36, ph: rnd() * 6.28, sw: 8 + rnd() * 20 });
+}
+// Anillos concéntricos
+const rings = [];
+for (let i = 0; i < 6; i++) rings.push(svgEl('circle', { cx: CX, cy: Y1, fill: 'none', stroke: i % 2 ? '#1E56A0' : '#3A8DFF' }, $('ringsG')));
+
+// Lemniscata (∞) — empieza en la punta derecha (u = 0)
+const INF_A = 490, INF_SY = 1.42;
+const infD = (() => { let d = ''; for (let i = 0; i <= 400; i++) { const u = i / 400 * Math.PI * 2, s = Math.sin(u), den = 1 + s * s;
+  const x = CX + INF_A * Math.cos(u) / den, y = CY + INF_SY * INF_A * s * Math.cos(u) / den; d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); } return d + 'Z'; })();
+$('infTrack').setAttribute('d', infD);
+const TAIL = [ // capas de la estela: fracción de longitud, grosor, color, opacidad
+  [1.00, 3, '#1E56A0', .55], [0.66, 5, '#3A8DFF', .7], [0.36, 7, '#7fb6ff', .9], [0.14, 9, '#ffffff', 1] ];
+const comets = [0, 500].map(off => ({ off, layers: TAIL.map(([f, w, col, o]) => svgEl('path', { d: infD, pathLength: 1000, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-linecap': 'round', opacity: o }, $('infComets'))), f: TAIL.map(l => l[0]),
+  head: svgEl('circle', { r: 11, fill: '#fff' }, $('infComets')) }));
+const infTrackLen = $('infTrack').getTotalLength();
+
+// Tarjeta — frente: ilustración lineal del inyector (inspirada en la silueta del logo)
+const rr = (x, y, w, h, r) => `M${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h - r}Q${x + w} ${y + h} ${x + w - r} ${y + h}H${x + r}Q${x} ${y + h} ${x} ${y + h - r}V${y + r}Q${x} ${y} ${x + r} ${y}Z`;
+const ell = (cx, cy, rx, ry) => `M${cx - rx} ${cy}a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0`;
+const rotRect = (cx, cy, w, h, deg) => { const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y], i) => (i ? 'L' : 'M') + (cx + x * c - y * s).toFixed(1) + ' ' + (cy + x * s + y * c).toFixed(1)).join('') + 'Z'; };
+const OY = 18;
+const INJ = [
+  rr(262, 52 + OY, 116, 44, 9), `M262 74 H378`.replace('74', 74 + OY),
+  `M290 ${96 + OY}V${146 + OY}M350 ${96 + OY}V${146 + OY}`, ell(320, 122 + OY, 46, 9),
+  rr(236, 146 + OY, 168, 26, 7), rr(258, 172 + OY, 124, 148, 12),
+  `M382 ${232 + OY}H424L446 ${210 + OY}`, rotRect(470, 186 + OY, 66, 36, -45),
+  rr(242, 320 + OY, 156, 196, 18),
+  [0, 1, 2, 3, 4, 5].map(i => `M268 ${350 + OY + i * 28}H372`).join(''),
+  rr(268, 516 + OY, 104, 24, 7), `M286 ${540 + OY}L298 ${640 + OY}H342L354 ${540 + OY}`,
+  ell(320, 582 + OY, 40, 7), `M298 ${640 + OY}L310 ${680 + OY}H330L342 ${640 + OY}`,
+];
+const front = $('front');
+const injGlow = svgEl('g', { filter: 'url(#bloom)', fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, front);
+const injCore = svgEl('g', { fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, front);
+const injPaths = INJ.map(d => [svgEl('path', { d, pathLength: 1, stroke: '#3A8DFF', 'stroke-width': 5 }, injGlow), svgEl('path', { d, pathLength: 1, stroke: '#ffffff', 'stroke-width': 2.2 }, injCore)]);
+const DIRT = [[306, 672, 10], [334, 660, 8], [296, 622, 8], [344, 600, 10], [320, 694, 6], [312, 548, 7], [330, 578, 6], [284, 470, 7], [360, 420, 6]];
+const dirtG = svgEl('g', { filter: 'url(#soft)' }, front);
+const dirt = DIRT.map(([x, y, r]) => svgEl('circle', { cx: x, cy: y + OY, r, fill: '#6f5c45' }, dirtG));
+const sprayG = svgEl('g', { filter: 'url(#bloomS)', fill: 'none', stroke: '#9cc6ff', 'stroke-width': 3, 'stroke-linecap': 'round' }, front);
+const spray = [[-78, 92], [-40, 104], [0, 110], [40, 104], [78, 92]].map(([dx, dy]) => svgEl('path', { d: `M320 ${704 + OY - 6}l${dx} ${dy}`, pathLength: 1, 'stroke-dasharray': '0.06 0.1' }, sprayG));
+const STAR = 'M0-1C.1-.1 .1-.1 1 0C.1 .1 .1 .1 0 1C-.1 .1-.1 .1-1 0C-.1-.1-.1-.1 0-1Z';
+const stars = [[442, 112, 34], [196, 286, 24], [462, 470, 28], [384, 690, 36], [222, 590, 20]].map(([x, y, s]) =>
+  ({ x, y, s, el: svgEl('path', { d: STAR, fill: '#fff', filter: 'url(#bloomS)' }, front) }));
+
+// Tarjeta — reverso: gota + medidor de combustible
+const back = $('back');
+const GX = 320, GY = 590, GR = 230;
+const polar = (ang, r) => [GX + r * Math.sin(ang * Math.PI / 180), GY - r * Math.cos(ang * Math.PI / 180)];
+const arc = (a0, a1, r) => { const [x0, y0] = polar(a0, r), [x1, y1] = polar(a1, r); return `M${x0} ${y0}A${r} ${r} 0 0 1 ${x1} ${y1}`; };
+const gaugeG = svgEl('g', { fill: 'none', 'stroke-linecap': 'round' }, back);
+const gArc = svgEl('path', { d: arc(-90, 90, GR), stroke: '#3A8DFF', 'stroke-width': 6, filter: 'url(#bloomS)' }, gaugeG);
+svgEl('path', { d: arc(-90, 90, GR), stroke: '#fff', 'stroke-width': 1.6, opacity: .8 }, gaugeG);
+svgEl('path', { d: arc(-90, -58, GR - 22), stroke: '#C10E1A', 'stroke-width': 16, filter: 'url(#bloomS)' }, gaugeG);
+for (let i = 0; i <= 8; i++) { const a = -90 + i * 22.5, [x0, y0] = polar(a, GR - 34), [x1, y1] = polar(a, GR - (i % 2 ? 52 : 70));
+  svgEl('path', { d: `M${x0} ${y0}L${x1} ${y1}`, stroke: '#BDC0C6', 'stroke-width': i % 2 ? 3 : 5 }, gaugeG); }
+// ícono de bomba de gasolina (sin texto)
+const pump = svgEl('g', { fill: 'none', stroke: '#BDC0C6', 'stroke-width': 4, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', transform: `translate(${GX - 30} ${GY + 70})` }, back);
+svgEl('path', { d: rr(0, 0, 42, 64, 6) + 'M8 12H34V28H8Z M-6 64H50' }, pump);
+svgEl('path', { d: 'M42 18H52Q58 18 58 26V52Q58 58 63 58Q68 58 68 52V18L58 6' }, pump);
+const needleG = svgEl('g', {}, back);
+svgEl('path', { d: `M${GX} ${GY + 26}L${GX} ${GY - GR + 40}`, stroke: '#C10E1A', 'stroke-width': 10, 'stroke-linecap': 'round', filter: 'url(#bloom)' }, needleG);
+svgEl('path', { d: `M${GX} ${GY + 20}L${GX} ${GY - GR + 44}`, stroke: '#fff', 'stroke-width': 3, 'stroke-linecap': 'round' }, needleG);
+svgEl('circle', { cx: GX, cy: GY, r: 20, fill: '#0b1426', stroke: '#BDC0C6', 'stroke-width': 4 }, back);
+const warn = svgEl('circle', { cx: polar(-74, GR - 100)[0], cy: polar(-74, GR - 100)[1], r: 13, fill: '#C10E1A', filter: 'url(#bloom)' }, back);
+const ripple = [0, 1].map(() => svgEl('ellipse', { cx: GX, cy: GY - 6, rx: 1, ry: 1, fill: 'none', stroke: '#ff4b55', 'stroke-width': 3, filter: 'url(#bloomS)' }, back));
+const drop = svgEl('g', {}, back);
+svgEl('path', { d: 'M0-58C20-26 38-4 38 18A38 38 0 1 1-38 18C-38-4-20-26 0-58Z', fill: 'url(#dropG)', filter: 'url(#bloomS)' }, drop);
+svgEl('ellipse', { cx: -13, cy: 12, rx: 7, ry: 13, fill: '#fff', opacity: .75, transform: 'rotate(18 -13 12)' }, drop);
+
+/* ---------- helpers de texto ---------- */
+function setT(el, o, blur, y, s, x = 0) {
+  el.style.opacity = o.toFixed(3);
+  el.style.visibility = o < 0.002 ? 'hidden' : 'visible';
+  el.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
+  el.style.transform = `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) scale(${s.toFixed(4)})`;
+}
+function inOut(t, tin, out, p = 'soft', dy = 46, s0 = .9) {
+  const e = sp(t, tin, p), a = prog(t, tin, tin + .2), b = prog(t, tin, tin + .4);
+  let o = a, blur = 20 * (1 - b), y = dy * (1 - e), s = lerp(s0, 1, e);
+  if (out) { const x = prog(t, out[0], out[1]), ex = eInCubic(x); o *= 1 - x; blur += 26 * x; y -= 60 * ex; s *= 1 + .06 * ex; }
+  return [o, blur, y, s];
+}
+
+/* ---------- render(t) ---------- */
+const els = { orb: $('orb'), beam: $('beam'), card: $('card'), shine: $('shine'), flash: $('flash'), plate: $('plate'), wa: $('wa'), cta: $('cta'),
+  t1: $('t1'), t2: $('t2'), t3: $('t3'), t4: $('t4'), ul: document.querySelector('#t4 .ul'), s5a: $('s5a'), s5b: $('s5b'), sep: $('sep'),
+  n5: document.querySelector('#s5a .num'), n20: document.querySelector('#s5b .num'), alert: $('alert'), ambient: $('ambient'),
+  words: [...document.querySelectorAll('#t2 .w')], ringsSvg: $('rings'), inf: $('infG'), track: $('infTrack') };
+
+const counter = (t, target) => { const p = prog(t, T.count[0], T.count[1]); return p >= 1 ? target : Math.floor(target * eOutCubic(p)); };
+
+function render(t) {
+  if (t > T.still) t = T.still;                     // desde 13 s el cuadro queda totalmente fijo
+  // --- ambiente / alerta roja ---
+  const alertK = smooth(...T.alertOn, t) * (1 - smooth(...T.alertOff, t));
+  els.alert.style.opacity = (alertK * .9).toFixed(3);
+  els.ambient.style.opacity = (0.35 + 0.4 * smooth(0, 1, t) - 0.3 * alertK + 0.25 * smooth(10.2, 11, t)).toFixed(3);
+
+  // --- polvo ---
+  const dustK = smooth(0.2, 1.4, t) * (1 - smooth(12.2, 12.9, t)) * .55;
+  for (const d of dust) {
+    const tt = Math.min(t, T.still);
+    const y = ((d.y - d.v * tt) % H + H) % H, x = d.x + Math.sin(tt * .8 + d.ph) * d.sw;
+    d.c.setAttribute('cx', x.toFixed(1)); d.c.setAttribute('cy', y.toFixed(1));
+    d.c.setAttribute('opacity', (dustK * (.45 + .55 * Math.sin(tt * 2 + d.ph) ** 2)).toFixed(3));
+  }
+
+  // --- orbe central y anillos (escenas 1–2) ---
+  const orbY = lerp(Y1, CY, sp(t, 2.98, 'soft'));
+  let orbS = 52 * sp(t, 0.04, 'bouncy');
+  orbS *= 1 - .55 * sp(t, T.t1In, 'soft') + .55 * sp(t, 2.98, 'soft');
+  orbS *= 1 + .07 * Math.sin(t * 5.2);
+  const ringK = 1 - smooth(3.0, 3.9, t);
+  els.ringsSvg.style.filter = `blur(${(10 * smooth(3.0, 3.9, t)).toFixed(2)}px)`;
+  els.ringsSvg.style.opacity = ringK.toFixed(3);
+  rings.forEach((c, i) => {
+    const age = t - (0.22 + i * 0.44), life = 2.7;
+    if (age < 0 || age > life || ringK <= 0) { c.setAttribute('opacity', 0); return; }
+    const a = age / life;
+    c.setAttribute('cy', orbY.toFixed(1));
+    c.setAttribute('r', (28 + 860 * eOutCubic(a)).toFixed(1));
+    c.setAttribute('stroke-width', (1 + 5 * (1 - a)).toFixed(2));
+    c.setAttribute('opacity', (.85 * Math.pow(1 - a, 1.4)).toFixed(3));
+  });
+
+  // --- morph orbe → tarjeta 3D (escenas 3–4) ---
+  const mW = sp(t, T.morph, 'wobbly'), mH = sp(t, T.morph + .08, 'wobbly');
+  const cw = lerp(orbS, 640, mW), ch = lerp(orbS, 820, mH);
+  const collapse = eInCubic(prog(t, ...T.collapse));
+  const cardOn = t >= T.morph && t < T.collapse[1];
+  els.card.style.display = cardOn ? 'block' : 'none';
+  if (cardOn) {
+    els.card.style.width = cw.toFixed(1) + 'px'; els.card.style.height = ch.toFixed(1) + 'px';
+    els.card.style.left = (CX - cw / 2).toFixed(1) + 'px'; els.card.style.top = (CY - ch / 2).toFixed(1) + 'px';
+    const rotY = -42 * (1 - sp(t, T.morph, 'wobbly')) + 7 * Math.sin((t - T.morph) * 1.05) + 180 * sp(t, T.flip, 'flip');
+    const rotX = 5 * Math.sin((t - T.morph) * .8) + 90 * collapse;
+    els.card.style.transform = `rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
+    els.card.style.opacity = prog(t, T.morph + .02, T.morph + .3).toFixed(3);
+    els.card.style.setProperty('--glow', rgb(BLUE, RED, alertK));
+    els.card.style.setProperty('--glowA', rgba(BLUE, RED, alertK, .75));
+    els.card.style.setProperty('--glowB', rgba(BLUE2, RED2, alertK, .55));
+  }
+  // orbe visible hasta que la tarjeta lo absorbe
+  const orbO = smooth(0, .12, t) * (1 - prog(t, T.morph + .02, T.morph + .42));
+  els.orb.style.display = orbO > 0 ? 'block' : 'none';
+  if (orbO > 0) {
+    const ow = t < T.morph ? orbS : cw, oh = t < T.morph ? orbS : ch, oy = t < T.morph ? orbY : CY;
+    Object.assign(els.orb.style, { width: ow + 'px', height: oh + 'px', left: (CX - ow / 2) + 'px', top: (oy - oh / 2) + 'px', opacity: orbO.toFixed(3) });
+  }
+
+  // frente: trazo del inyector, suciedad, destello de limpieza
+  const shineP = eInOut(prog(t, ...T.shine));
+  els.shine.style.left = lerp(-60, 125, shineP).toFixed(2) + '%';
+  els.shine.style.opacity = (shineP > 0 && shineP < 1) ? 1 : 0;
+  const clean = smooth(T.shine[0] + .2, T.shine[1], t);
+  injPaths.forEach(([g, c], i) => {
+    const p = eInOut(prog(t, T.draw + i * .045, T.draw + i * .045 + .8));
+    g.setAttribute('stroke-dasharray', `${p} 1`); c.setAttribute('stroke-dasharray', `${p} 1`);
+    g.setAttribute('opacity', (.5 + .5 * clean).toFixed(3)); c.setAttribute('opacity', (.55 + .45 * clean).toFixed(3));
+  });
+  dirt.forEach((d, i) => { const x = DIRT[i][0] / 640; const gone = prog(shineP, x * .75 + .05, x * .75 + .2);
+    d.setAttribute('opacity', (.85 * smooth(T.draw + .5, T.draw + .9, t) * (1 - gone)).toFixed(3)); });
+  spray.forEach((s, i) => { const p = eOutCubic(prog(t, T.spray + i * .03, T.spray + .5 + i * .03));
+    s.setAttribute('stroke-dashoffset', (-(t - T.spray) * .35).toFixed(3)); s.setAttribute('opacity', (p * (1 - smooth(7.9, 8.2, t))).toFixed(3));
+    s.setAttribute('transform', `translate(320 ${698 + OY}) scale(${p.toFixed(3)}) translate(-320 ${-(698 + OY)})`); });
+  stars.forEach((s, i) => { const t0 = 6.78 + i * .07, k = sp(t, t0, 'bouncy') * (1 - smooth(t0 + .45, t0 + .85, t));
+    s.el.setAttribute('transform', `translate(${s.x} ${s.y}) rotate(${(45 * (t - t0)).toFixed(1)}) scale(${(s.s * k).toFixed(2)})`);
+    s.el.setAttribute('opacity', k > .001 ? 1 : 0); });
+
+  // reverso: gota → medidor cae
+  const form = sp(t, T.dropForm, 'bouncy'), fall = eInCubic(prog(t, ...T.dropFall));
+  const dropY = lerp(150, GY - 40, fall), dropO = form * (1 - prog(t, T.dropFall[1] - .02, T.dropFall[1] + .06));
+  drop.setAttribute('transform', `translate(${GX} ${dropY.toFixed(1)}) scale(${(form * (1 - .15 * fall)).toFixed(3)} ${(form * (1 + .25 * fall)).toFixed(3)})`);
+  drop.setAttribute('opacity', dropO.toFixed(3));
+  ripple.forEach((r, i) => { const a = prog(t, T.needle + i * .12, T.needle + .55 + i * .12);
+    r.setAttribute('rx', (10 + 150 * eOutCubic(a)).toFixed(1)); r.setAttribute('ry', (3 + 34 * eOutCubic(a)).toFixed(1));
+    r.setAttribute('opacity', a > 0 && a < 1 ? (1 - a).toFixed(3) : 0); });
+  const needleA = 78 - 162 * spring(t - T.needle, [190, 13]);
+  needleG.setAttribute('transform', `rotate(${needleA.toFixed(2)} ${GX} ${GY})`);
+  const blink = t > 9.5 && t < 9.98 ? (Math.sin((t - 9.5) * Math.PI * 2 / .24) > 0 ? 1 : .15) : (t >= 9.98 ? 1 : .15);
+  warn.setAttribute('opacity', blink);
+  gArc.setAttribute('stroke', rgb(BLUE, RED, alertK));
+
+  // --- haz horizontal (la tarjeta colapsa en una línea de luz) ---
+  const beamO = smooth(10.12, 10.26, t) * (1 - smooth(10.32, 10.62, t));
+  els.beam.style.display = beamO > 0 ? 'block' : 'none';
+  if (beamO > 0) { const bw = lerp(560, 2 * INF_A, eOutCubic(prog(t, 10.12, 10.34)));
+    Object.assign(els.beam.style, { width: bw + 'px', left: (CX - bw / 2) + 'px', top: (CY - 2) + 'px', opacity: beamO.toFixed(3) }); }
+
+  // --- infinito ---
+  const infOn = t >= T.comet[0] && t < T.converge[1];
+  els.inf.style.display = infOn ? 'inline' : 'none';
+  if (infOn) {
+    const head = 1000 * 1.25 * eInOut(prog(t, ...T.comet));
+    const L = lerp(lerp(30, 400, smooth(10.3, 11.4, t)), 500, eInOut(prog(t, ...T.close)));
+    comets.forEach(c => {
+      const s = head + c.off;
+      c.layers.forEach((p, i) => { const l = L * c.f[i];
+        p.setAttribute('stroke-dasharray', `${l.toFixed(2)} ${(1000 - l).toFixed(2)}`);
+        p.setAttribute('stroke-dashoffset', (-(s - l)).toFixed(2)); });
+      const pt = $('infTrack').getPointAtLength(((s % 1000) + 1000) % 1000 / 1000 * infTrackLen);
+      c.head.setAttribute('cx', pt.x.toFixed(1)); c.head.setAttribute('cy', pt.y.toFixed(1));
+      c.head.setAttribute('r', (9 + 5 * smooth(T.close[0], T.close[1], t)).toFixed(2));
+    });
+    const cv = prog(t, ...T.converge), k = 1 - eInCubic(cv);
+    els.inf.setAttribute('transform', `translate(${CX} ${CY}) scale(${k.toFixed(4)} ${Math.max(0, k * (1 - .4 * cv)).toFixed(4)}) translate(${-CX} ${-CY})`);
+    els.inf.setAttribute('opacity', (smooth(10.28, 10.4, t) * (1 - smooth(T.converge[0] + .2, T.converge[1], t))).toFixed(3));
+    els.track.setAttribute('opacity', (.16 * smooth(10.3, 10.8, t) * (1 - smooth(T.close[0], T.close[1], t))).toFixed(3));
+  }
+
+  // --- tarjeta → textos ---
+  setT(els.t1, ...(() => {
+    const e = sp(t, T.t1In, 'bouncy'), x = prog(t, ...T.t1Out), ex = eInCubic(x);
+    const o = prog(t, T.t1In, T.t1In + .14) * (1 - x), blur = 22 * (1 - prog(t, T.t1In, T.t1In + .32)) + 26 * x;
+    const s = lerp(.12, 1, e) * (1 + .06 * ex), y = lerp(-230, 0, e) - 60 * ex;   // emerge del centro (orbe)
+    return [o, blur, y, s];
+  })());
+  // escena 2: palabra por palabra
+  const t2x = prog(t, ...T.t2Out);
+  els.t2.style.visibility = t > T.t2Word(0) - .01 && t2x < 1 ? 'visible' : 'hidden';
+  setT(els.t2, 1 - t2x, 26 * t2x, -60 * eInCubic(t2x), 1 + .06 * eInCubic(t2x));
+  els.words.forEach((w, i) => { const t0 = T.t2Word(i), e = sp(t, t0, 'snappy');
+    w.style.opacity = prog(t, t0, t0 + .22).toFixed(3);
+    w.style.filter = `blur(${(16 * (1 - prog(t, t0, t0 + .3))).toFixed(2)}px)`;
+    w.style.transform = `translateY(${(28 * (1 - e)).toFixed(2)}px) scale(${lerp(.92, 1, e).toFixed(4)})`; });
+  setT(els.t3, ...inOut(t, T.t3In, T.t3Out, 'wobbly'));
+  setT(els.t4, ...inOut(t, T.t4In, T.t4Out, 'wobbly'));
+  els.ul.style.transform = `scaleX(${eOutCubic(prog(t, 9.1, 9.5)).toFixed(4)})`;
+
+  // --- escena 5: estadísticas ---
+  const statIn = (t0) => { const e = sp(t, t0, 'bouncy'); return [prog(t, t0, t0 + .18), 20 * (1 - prog(t, t0, t0 + .35)), 0, lerp(.4, 1, e)]; };
+  const conv = eInCubic(prog(t, ...T.s5Out));
+  [[els.s5a, 10.32, CX - 0.707 * INF_A], [els.s5b, 10.4, CX + 0.707 * INF_A]].forEach(([el, t0, x0]) => {
+    el.style.left = (x0 - 260) + 'px'; el.style.top = (CY - 102) + 'px';
+    const [o, b, , s] = statIn(t0);
+    setT(el, o * (1 - conv), b + 18 * conv, -0 * conv, s * (1 - .75 * conv), (CX - x0) * conv);
+    el.style.transformOrigin = '50% 98px';
+  });
+  els.n5.textContent = '+' + counter(t, 5);
+  els.n20.textContent = '+' + counter(t, 20);
+  document.querySelectorAll('.stat .lbl').forEach((l, i) => { const t0 = 10.62 + i * .1; l.style.opacity = prog(t, t0, t0 + .25).toFixed(3);
+    l.style.filter = `blur(${(14 * (1 - prog(t, t0, t0 + .35))).toFixed(2)}px)`; l.style.transform = `translateY(${(30 * (1 - sp(t, t0, 'snappy'))).toFixed(2)}px)`; });
+  {
+    const head = 1000 * 1.25 * eInOut(prog(t, ...T.comet)); const m = ((head % 500) + 500) % 500;
+    const boost = t > T.comet[0] ? Math.exp(-Math.pow((m - 250) / 45, 2)) : 0;
+    const [o, b, , s] = statIn(10.5);
+    els.sep.style.top = (CY - 122) + 'px';
+    setT(els.sep, o * (1 - smooth(T.converge[0], T.converge[1] - .1, t)), b, 0, s * (1 + .35 * boost));
+  }
+
+  // --- escena 6: convergencia → logo + CTA (estable desde 13.0 s) ---
+  const fl = prog(t, ...T.flash), fs = 40 + 1100 * eOutCubic(fl);
+  els.flash.style.display = fl > 0 && fl < 1 ? 'block' : 'none';
+  Object.assign(els.flash.style, { width: fs + 'px', height: fs + 'px', left: (CX - fs / 2) + 'px', top: (CY - fs / 2) + 'px', opacity: (Math.sin(Math.PI * Math.min(1, fl * 1.6)) * (1 - fl)).toFixed(3) });
+  const fin = t >= T.still;
+  { const e = fin ? 1 : sp(t, T.plate, 'settle'); const o = fin ? 1 : prog(t, T.plate, T.plate + .16), b = fin ? 0 : 18 * (1 - prog(t, T.plate, T.plate + .32));
+    els.plate.style.top = (CY - 278) + 'px'; setT(els.plate, o, b, 0, lerp(.25, 1, e)); }
+  { const e = fin ? 1 : sp(t, T.cta, 'settle'); setT(els.cta, fin ? 1 : prog(t, T.cta, T.cta + .2), fin ? 0 : 16 * (1 - prog(t, T.cta, T.cta + .3)), 40 * (1 - e), lerp(.92, 1, e)); }
+  { const e = fin ? 1 : sp(t, T.wa, 'settle'); setT(els.wa, fin ? 1 : prog(t, T.wa, T.wa + .18), fin ? 0 : 14 * (1 - prog(t, T.wa, T.wa + .28)), 34 * (1 - e), lerp(.88, 1, e)); }
+}
+
+/* =========================================================================
+   AUDIO — solo efectos, sintetizados con Web Audio API (sin música)
+   Funciona con AudioContext (en vivo) y OfflineAudioContext (exportación).
+   ========================================================================= */
+function buildSfx(ctx, T0) {
+  const R = mulberry(7);
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -16; comp.knee.value = 10; comp.ratio.value = 3; comp.attack.value = .004; comp.release.value = .18;
+  const master = ctx.createGain(); master.gain.value = .9;
+  master.connect(comp); comp.connect(ctx.destination);
+  // reverb corta (respuesta impulsiva determinista)
+  const irLen = Math.floor(ctx.sampleRate * 1.7), ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) d[i] = (R() * 2 - 1) * Math.pow(1 - i / irLen, 3.2); }
+  const verb = ctx.createConvolver(); verb.buffer = ir; const wet = ctx.createGain(); wet.gain.value = .3; verb.connect(wet); wet.connect(master);
+  const nb = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); { const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = R() * 2 - 1; }
+
+  const bus = (gain = 1, pan = 0, send = 0) => { const g = ctx.createGain(); g.gain.value = gain; const p = ctx.createStereoPanner(); p.pan.value = pan;
+    g.connect(p); p.connect(master); if (send) { const s = ctx.createGain(); s.gain.value = send; p.connect(s); s.connect(verb); } return { in: g, pan: p.pan }; };
+  const env = (param, at, a, peak, d, floor = 1e-4) => { param.setValueAtTime(floor, at); param.linearRampToValueAtTime(peak, at + a); param.exponentialRampToValueAtTime(floor, at + a + d); };
+  const noise = (at, dur) => { const s = ctx.createBufferSource(); s.buffer = nb; s.start(at, R() * .8, dur + .05); return s; };
+  const osc = (type, f, at, dur) => { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, at); o.start(at); o.stop(at + dur + .05); return o; };
+
+  const whoosh = (t, dur, f0, f1, gain, p0 = -.6, p1 = .6, send = .15) => { const at = T0 + t, b = bus(gain, p0, send);
+    b.pan.setValueAtTime(p0, at); b.pan.linearRampToValueAtTime(p1, at + dur);
+    const n = noise(at, dur), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.setValueAtTime(f0, at); bp.frequency.exponentialRampToValueAtTime(f1, at + dur * .7); bp.frequency.exponentialRampToValueAtTime(f0 * .8, at + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(1e-4, at); g.gain.exponentialRampToValueAtTime(1, at + dur * .62); g.gain.exponentialRampToValueAtTime(1e-4, at + dur);
+    n.connect(bp); bp.connect(g); g.connect(b.in); };
+  const impact = (t, gain = 1) => { const at = T0 + t, b = bus(gain, 0, .18);
+    const o = osc('sine', 120, at, 1.1); o.frequency.exponentialRampToValueAtTime(36, at + .45);
+    const g = ctx.createGain(); env(g.gain, at, .004, .95, 1.0); o.connect(g); g.connect(b.in);
+    const o2 = osc('triangle', 60, at, .6); o2.frequency.exponentialRampToValueAtTime(30, at + .4); const g2 = ctx.createGain(); env(g2.gain, at, .004, .35, .55); o2.connect(g2); g2.connect(b.in);
+    const n = noise(at, .25), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2400, at); lp.frequency.exponentialRampToValueAtTime(200, at + .2);
+    const gn = ctx.createGain(); env(gn.gain, at, .002, .5, .2); n.connect(lp); lp.connect(gn); gn.connect(b.in); };
+  const pop = (t, f, pan) => { const at = T0 + t, b = bus(.42, pan, .08);
+    const o = osc('sine', f * 2.2, at, .16); o.frequency.exponentialRampToValueAtTime(f, at + .045);
+    const g = ctx.createGain(); env(g.gain, at, .003, .7, .12); o.connect(g); g.connect(b.in); };
+  const sparkle = (t) => { const notes = [2093, 2637, 3136, 3951, 4186, 5274, 3520];
+    for (let i = 0; i < 11; i++) { const at = T0 + t + i * .045 + R() * .02, b = bus(.07, R() * 1.6 - .8, .9);
+      const o = osc('sine', notes[Math.floor(R() * notes.length)], at, .5); const g = ctx.createGain(); env(g.gain, at, .003, 1, .38); o.connect(g); g.connect(b.in); }
+    const at = T0 + t, b = bus(.12, 0, .5), n = noise(at, .7), hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+    const g = ctx.createGain(); g.gain.setValueAtTime(1e-4, at); g.gain.exponentialRampToValueAtTime(.8, at + .25); g.gain.exponentialRampToValueAtTime(1e-4, at + .7);
+    n.connect(hp); hp.connect(g); g.connect(b.in); };
+  const drip = (t, f0, f1, gain) => { const at = T0 + t, b = bus(gain, 0, .35);
+    const o = osc('sine', f0, at, .2); o.frequency.exponentialRampToValueAtTime(f1, at + .05);
+    const g = ctx.createGain(); env(g.gain, at, .002, .9, .11); o.connect(g); g.connect(b.in); };
+  const powerDown = (t, dur) => { const at = T0 + t, b = bus(.5, 0, .1);
+    const o = osc('sawtooth', 210, at, dur); o.frequency.exponentialRampToValueAtTime(38, at + dur);
+    const o2 = osc('sine', 105, at, dur); o2.frequency.exponentialRampToValueAtTime(26, at + dur);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 4; lp.frequency.setValueAtTime(1800, at); lp.frequency.exponentialRampToValueAtTime(140, at + dur);
+    const am = ctx.createGain(); am.gain.value = .55; const lfo = osc('square', 26, at, dur); lfo.frequency.exponentialRampToValueAtTime(5, at + dur);
+    const lg = ctx.createGain(); lg.gain.value = .35; lfo.connect(lg); lg.connect(am.gain);
+    const g = ctx.createGain(); g.gain.setValueAtTime(1e-4, at); g.gain.exponentialRampToValueAtTime(.5, at + .05); g.gain.setValueAtTime(.5, at + dur * .4); g.gain.exponentialRampToValueAtTime(1e-4, at + dur);
+    o.connect(lp); o2.connect(lp); lp.connect(am); am.connect(g); g.connect(b.in); };
+  const tick = (t, i) => { const at = T0 + t, b = bus(.09, i % 2 ? .25 : -.25, 0);
+    const o = osc('square', 2600 + (i % 3) * 180, at, .02); const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+    const g = ctx.createGain(); env(g.gain, at, .001, 1, .018); o.connect(hp); hp.connect(g); g.connect(b.in); };
+  const ding = (t) => { const at = T0 + t; [[1568, .26], [3136, .07], [4699, .03], [2349, .05]].forEach(([f, a]) => {
+    const b = bus(a, 0, .6); const o = osc('sine', f, at, 1.2); const g = ctx.createGain(); env(g.gain, at, .003, 1, 1.0); o.connect(g); g.connect(b.in); }); };
+  const notify = (t) => { [[0, 1046.5], [.11, 1568]].forEach(([dt, f]) => { const at = T0 + t + dt;
+    [[1, .2], [2, .05], [3, .02]].forEach(([h, a]) => { const b = bus(a, 0, .45); const o = osc('sine', f * h, at, .6); const g = ctx.createGain(); env(g.gain, at, .004, 1, .42); o.connect(g); g.connect(b.in); }); }); };
+
+  /* --------- partitura de efectos, sincronizada con la línea de tiempo --------- */
+  whoosh(0.0, 0.95, 300, 3200, .55, -.4, .2);              // E1 whoosh de entrada
+  impact(T1_IMPACT, .95);                                     // E1 golpe grave al asentarse el texto
+  for (let i = 0; i < 7; i++) pop(T.t2Word(i) + .02, 380 + i * 34, (i - 3) * .12);   // E2 pop por palabra
+  whoosh(T.morph - .05, .75, 500, 4200, .5, .6, -.5);         // E3 swoosh de giro
+  sparkle(T.shine[0] + .15);                                  // E3 destello brillante
+  whoosh(T.flip - .04, .6, 700, 3800, .42, -.5, .5);          // E4 volteo de tarjeta
+  drip(T.dropForm + .12, 520, 1450, .35);                     // E4 goteo
+  drip(T.dropFall[1], 300, 980, .45); drip(T.dropFall[1] + .07, 700, 1900, .14);
+  powerDown(T.needle + .02, 1.0);                             // E4 aguja / motor perdiendo fuerza
+  whoosh(T.collapse[0], .45, 900, 5200, .25, 0, 0, .1);       // colapso a haz de luz
+  { let last = -1, k = 0, prev5 = -1, prev20 = -1;            // E5 ticks del contador
+    for (let tt = T.count[0]; tt <= T.count[1] + .001; tt += .001) { const a = counter(tt, 5), b = counter(tt, 20);
+      if ((a !== prev5 || b !== prev20) && tt - last > .028) { if (prev5 >= 0) tick(tt, k++); last = tt; }
+      prev5 = a; prev20 = b; } }
+  ding(T.count[1]);                                           // E5 ding al llegar al valor final
+  whoosh(T.converge[0] - .1, .9, 260, 2200, .42, .3, -.1, .3); // E6 whoosh suave del logo
+  impact(T.flash[0] + .02, .28);
+  notify(T.wa + .04);                                         // E6 notificación de mensaje
+  return master;
+}
+
+/* ---------- WAV (para exportación) ---------- */
+async function renderAudioWav() {
+  const SR = 48000, ctx = new OfflineAudioContext(2, SR * DUR, SR);
+  buildSfx(ctx, 0);
+  const buf = await ctx.startRendering();
+  const n = buf.length, L = buf.getChannelData(0), Rr = buf.getChannelData(1);
+  const ab = new ArrayBuffer(44 + n * 4), v = new DataView(ab);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); ws(8, 'WAVE'); ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+  v.setUint32(24, SR, true); v.setUint32(28, SR * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 4, true);
+  for (let i = 0, o = 44; i < n; i++, o += 4) { v.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true); v.setInt16(o + 2, Math.max(-1, Math.min(1, Rr[i])) * 32767, true); }
+  const bytes = new Uint8Array(ab); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/* ---------- escalado y reproducción ---------- */
+const stage = $('stage');
+function fit() { const s = Math.min(innerWidth / W, innerHeight / H); stage.style.transform = `translate(-50%,-50%) scale(${s})`; }
+addEventListener('resize', fit); fit();
+
+const isExport = new URLSearchParams(location.search).has('export');
+if (isExport) document.body.classList.add('export');
+window.__seek = t => render(t);
+window.__renderAudioWav = renderAudioWav;
+window.__duration = DUR;
+window.__ready = Promise.all([document.fonts.ready, ...[...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))]).then(() => { render(0); return true; });
+
+let actx = null, raf = 0;
+render(isExport ? 0 : 1.6);
+$('play').addEventListener('click', async () => {
+  if (actx) await actx.close();
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  await actx.resume();
+  const T0 = actx.currentTime + .12;
+  buildSfx(actx, T0);
+  $('ui').classList.add('hide');
+  cancelAnimationFrame(raf);
+  const loop = () => { const t = actx.currentTime - T0; render(Math.max(0, Math.min(DUR, t)));
+    if (t < DUR) raf = requestAnimationFrame(loop); else { $('play').innerHTML = '↺&nbsp; Repetir'; $('ui').classList.remove('hide'); } };
+  loop();
+});
+</script>
+</body>
+</html>
