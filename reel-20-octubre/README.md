@@ -10,6 +10,7 @@ Identidad de Germán Mendiola:
 - `out/reel_20oct_preview.mp4`: vista previa sobre un fondo gris de referencia.
 - `out/reel_20oct_overlay_alpha.webm`: capa con transparencia (VP9 con alfa), archivo ligero.
 - `out/reel_20oct_overlay_alpha.mov`: máster ProRes 4444 con alfa (no está en git, se regenera con el renderizador).
+- `out/reel_20oct_sfx.wav`: pista de efectos de sonido sola (48 kHz, estéreo, pico a -6 dBFS) para mezclarla con la voz. El MP4, el MOV y el WebM ya la traen incluida.
 
 | Rango | Tipo | Contenido |
 |---|---|---|
@@ -33,4 +34,5 @@ Los subtítulos salen palabra por palabra de `subs.srt` (la palabra que se está
 # words.js ya está generado a partir de subs.srt
 node render.mjs stills /tmp/st 3.5 12 27    # cuadros de prueba
 node render.mjs video out/reel_20oct_overlay_alpha.mov
+python3 sfx.py out/reel_20oct_sfx.wav       # efectos de sonido
 ```
