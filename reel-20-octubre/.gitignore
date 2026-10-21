@@ -1,0 +1,2 @@
+# ProRes master is ~180 MB (over GitHub's 100 MB limit); regenerate with: node render.mjs video out/reel_20oct_overlay_alpha.mov
+out/*.mov
