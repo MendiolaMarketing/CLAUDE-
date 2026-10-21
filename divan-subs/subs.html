@@ -1,0 +1,373 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>El Diván Abierto — Subtítulos</title>
+<style>
+  @font-face { font-family: 'Divan Script'; src: url('fonts/PinyonScript-Regular.ttf'); }
+  html,body{margin:0;background:transparent;}
+  canvas{display:block;}
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script>
+/* =========================================================================
+   EL DIVÁN ABIERTO — subtítulos dinámicos + escenas a pantalla completa
+   1080x1920 / 24fps / 00:01:12:04. Todo es función pura de t (segundos).
+   Fondo transparente fuera de las escenas a pantalla completa.
+   ========================================================================= */
+const W = 1080, H = 1920, CX = W / 2;
+const FPS = 24, FRAMES = 72 * FPS + 4;
+const C = { oliva:'#99A68A', lila:'#938698', crema:'#E9E8D3', tcrema:'#F5F3EA', morado:'#3C3552' };
+// Helvetica Now si está instalada; Inter Display como sustituto neo-grotesco.
+const SANS = '"Helvetica Now Display","Helvetica Now Text","Inter Display","Inter",sans-serif';
+const SCRIPT = '"Citadel Script","Divan Script",cursive';
+const sans = (px, w = 700) => `${w} ${px}px ${SANS}`;
+const script = px => `400 ${px}px ${SCRIPT}`;
+const tc = (h, m, s, f) => h * 3600 + m * 60 + s + f / FPS;
+
+// Escenas a pantalla completa (timecodes HH:MM:SS:FF del brief)
+const FULL = [
+  { a: tc(0,0,7,13),  b: tc(0,0,8,14),  draw: sceneQue },
+  { a: tc(0,0,21,14), b: tc(0,0,24,17), draw: sceneTras },
+  { a: tc(0,0,31,3),  b: tc(0,0,34,15), draw: sceneComodo },
+  { a: tc(0,0,52,7),  b: tc(0,0,54,1),  draw: scenePatron },
+  { a: tc(0,1,1,23),  b: tc(0,1,4,0),   draw: sceneCercania },
+];
+const T_IN = .13, T_OUT = .12;   // el barrido queda centrado en cada timecode
+
+// ---------- math ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const E = {
+  outCubic: x => 1 - Math.pow(1 - x, 3),
+  outQuint: x => 1 - Math.pow(1 - x, 5),
+  inOutCubic: x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+  inOutExpo: x => x <= 0 ? 0 : x >= 1 ? 1 : x < .5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2,
+  outBack: x => { const c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); },
+  inOutSine: x => -(Math.cos(Math.PI * x) - 1) / 2,
+};
+const rgba = (h, a) => `rgba(${parseInt(h.slice(1,3),16)},${parseInt(h.slice(3,5),16)},${parseInt(h.slice(5,7),16)},${a})`;
+
+// ---------- SRT ----------
+let WORDS = [];
+function parseSrt(src) {
+  const ts = s => { const [h, m, r] = s.split(':'); const [sec, ms] = r.split(','); return +h * 3600 + +m * 60 + +sec + +ms / 1000; };
+  return src.replace(/\r/g, '').trim().split(/\n\s*\n/).map(b => {
+    const l = b.split('\n'); const [a, z] = l[1].split(' --> ');
+    return { s: ts(a), e: ts(z), w: l.slice(2).join(' ').trim() };
+  });
+}
+// Palabra -> escena completa si su mayor parte cae dentro de ella
+const sceneOf = w => FULL.findIndex(f => Math.min(w.e, f.b) - Math.max(w.s, f.a) > (w.e - w.s) / 2);
+
+// Agrupa las palabras restantes en frases cortas para los subtítulos
+let GROUPS = [];
+function buildGroups() {
+  let g = null;
+  WORDS.forEach((w, i) => {
+    w.scene = sceneOf(w);
+    if (w.scene >= 0) { g = null; return; }
+    const prev = WORDS[i - 1];
+    const chars = g ? g.words.reduce((n, x) => n + x.w.length + 1, 0) : 0;
+    const brk = !g || chars + w.w.length > 17 || g.words.length >= 4 || w.s - prev.e > .28 || /[,.?!]$/.test(prev.w) || /^[¿A-ZÁÉÍÓÚ]/.test(w.w);
+    if (brk) { g = { words: [] }; GROUPS.push(g); }
+    g.words.push(w);
+  });
+  GROUPS.forEach((g, i) => {
+    g.s = g.words[0].s; g.lastE = g.words.at(-1).e;
+    const next = GROUPS[i + 1];
+    const ns = next && next.words[0].s;
+    const hold = next && ns - g.lastE < .7 ? ns : g.lastE + .35;
+    g.e = Math.min(hold, ...FULL.filter(f => f.a > g.s).map(f => f.a - T_IN));
+  });
+}
+
+// ---------- texto ----------
+function setFont(ctx, f, ls = 0) { ctx.font = f; ctx.letterSpacing = ls + 'px'; }
+function shadow(ctx, on, blur = 22, a = .45) {
+  ctx.shadowColor = on ? rgba(C.morado, a) : 'transparent';
+  ctx.shadowBlur = on ? blur : 0; ctx.shadowOffsetY = on ? 3 : 0;
+}
+
+// =========================================================================
+// SUBTÍTULOS
+// =========================================================================
+const SUB_Y = 1300, SUB_PX = 72, SUB_GAP = 22;
+function drawSubs(ctx, t) {
+  const g = GROUPS.find(g => t >= g.s - .06 && t < g.e);
+  if (!g) return;
+  setFont(ctx, sans(SUB_PX, 700), -0.5);
+  const ws = g.words.map(w => ctx.measureText(w.w).width);
+  const total = ws.reduce((a, b) => a + b, 0) + SUB_GAP * (ws.length - 1);
+  let x = CX - total / 2; const xs = ws.map(w => { const r = x; x += w + SUB_GAP; return r; });
+
+  const out = E.inOutCubic(prog(t, g.e - .14, g.e));
+  ctx.save();
+  ctx.globalAlpha = 1 - out;
+  ctx.translate(0, -out * 16);
+
+  // Píldora de la palabra activa: se desliza de palabra en palabra
+  let ai = g.words.findIndex((w, i) => t >= w.s && (i === g.words.length - 1 || t < g.words[i + 1].s));
+  if (ai >= 0) {
+    const w = g.words[ai], k = E.outCubic(prog(t, w.s, w.s + .13));
+    const pi = Math.max(ai - 1, 0);
+    const px = lerp(xs[pi], xs[ai], ai === 0 ? 1 : k), pw = lerp(ws[pi], ws[ai], ai === 0 ? 1 : k);
+    const appear = ai === 0 ? E.outBack(prog(t, w.s, w.s + .2)) : 1;
+    const fade = t > g.lastE ? 1 - prog(t, g.lastE, g.lastE + .2) : 1;
+    const padX = 18, h = SUB_PX * 1.24;
+    ctx.save();
+    ctx.globalAlpha *= fade;
+    ctx.translate(px + pw / 2, SUB_Y - SUB_PX * .34);
+    ctx.scale(appear, appear);
+    shadow(ctx, true, 26, .25);
+    ctx.fillStyle = C.lila;
+    ctx.beginPath(); ctx.roundRect(-pw / 2 - padX, -h / 2, pw + padX * 2, h, h / 2); ctx.fill();
+    ctx.restore();
+  }
+
+  g.words.forEach((w, i) => {
+    const k = prog(t, w.s - .05, w.s + .2);
+    if (k <= 0) return;
+    const e = E.outCubic(k), sc = lerp(.86, 1, E.outBack(k));
+    ctx.save();
+    ctx.globalAlpha *= e;
+    ctx.translate(xs[i] + ws[i] / 2, SUB_Y + (1 - e) * 22);
+    ctx.scale(sc, sc);
+    shadow(ctx, i !== ai, 20, .5);
+    ctx.fillStyle = C.tcrema; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(w.w, 0, 0);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+// =========================================================================
+// ESCENAS A PANTALLA COMPLETA
+// =========================================================================
+// Barrido de dos capas: color de acento por delante, fondo detrás; salida hacia arriba
+function wipe(ctx, t, f, under, bgc) {
+  const i1 = E.inOutExpo(prog(t, f.a - T_IN, f.a + T_IN)), i2 = E.inOutExpo(prog(t, f.a - T_IN + .05, f.a + T_IN + .05));
+  const o1 = E.inOutExpo(prog(t, f.b - T_OUT - .04, f.b + T_OUT - .04)), o2 = E.inOutExpo(prog(t, f.b - T_OUT, f.b + T_OUT));
+  const band = (top, bot, col) => { if (bot > top) { ctx.fillStyle = col; ctx.fillRect(0, top, W, bot - top); } };
+  band(H * (1 - i1), H * (1 - o2), under);
+  band(H * (1 - i2), H * (1 - o1), bgc);
+  // región visible del fondo (para recortar el contenido)
+  return [H * (1 - i2), H * (1 - o1)];
+}
+
+// Diván (logo lineal): respaldo con voluta + asiento + patas, en caja 200x100
+const DIVAN = new Path2D(
+  'M 30 72 C 22 60 22 40 30 28 C 36 20 32 10 24 12 C 17 14 18 24 26 22 ' +
+  'M 30 28 C 42 44 56 54 76 56 L 178 56 C 189 56 190 72 178 72 L 30 72 ' +
+  'M 44 72 L 40 86 M 168 72 L 172 86'
+);
+function divan(ctx, x, y, w, col, lw, p = 1, rock = 0) {
+  const s = w / 200;
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(rock); ctx.scale(s, s); ctx.translate(-105, -49);
+  ctx.strokeStyle = col; ctx.lineWidth = lw / s; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (p < 1) { ctx.setLineDash([260, 260]); ctx.lineDashOffset = 260 * (1 - p); }
+  ctx.stroke(DIVAN);
+  ctx.restore();
+}
+function signature(ctx, col, a, y = 1610) {
+  if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  divan(ctx, CX, y - 34, 64, col, 2.2);
+  setFont(ctx, sans(20, 400), 3); ctx.fillStyle = col; ctx.textAlign = 'center';
+  ctx.fillText('EL DIVÁN ABIERTO', CX + 1.5, y + 14);
+  ctx.restore();
+}
+
+/* Texto cinético de escena. lines: [{ words:[...], font, color, size }]
+   Cada palabra sube desde una máscara en el momento en que se pronuncia. */
+function kinetic(ctx, t, f, lines, y0, opts = {}) {
+  const sw = WORDS.filter(w => w.scene === FULL.indexOf(f));
+  let wi = 0, y = y0;
+  for (const L of lines) {
+    const n = L.n, words = sw.slice(wi, wi + n); wi += n;
+    const txt = (L.text || words.map(w => w.w)).map(s => L.upper ? s.toUpperCase() : s);
+    let size = L.size;
+    const fnt = px => L.script ? script(px) : sans(px, L.w || 700);
+    setFont(ctx, fnt(size), L.ls ?? -2);
+    const gap = () => size * (L.script ? .22 : .26);
+    let widths = txt.map(s => ctx.measureText(s).width), tot = widths.reduce((a, b) => a + b, 0) + gap() * (txt.length - 1);
+    if (tot > 940) { size *= 940 / tot; setFont(ctx, fnt(size), L.ls ?? -2); widths = txt.map(s => ctx.measureText(s).width); tot = widths.reduce((a, b) => a + b, 0) + gap() * (txt.length - 1); }
+    y += size * (L.before ?? .9);
+    let x = CX - tot / 2;
+    txt.forEach((s, i) => {
+      const w = words[i], k = E.outQuint(prog(t, Math.max(w.s, f.a) - .03, Math.max(w.s, f.a) + .32));
+      if (k > 0) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x - 40, y - size * 1.25, widths[i] + 80, size * 1.6); ctx.clip();
+        ctx.globalAlpha = clamp(k * 1.6);
+        ctx.translate(0, (1 - k) * size * 1.05);
+        ctx.fillStyle = L.color; ctx.textAlign = 'left';
+        ctx.fillText(s, x, y);
+        if (L.underline) {
+          const u = E.inOutCubic(prog(t, w.s + .15, w.s + .55));
+          ctx.fillStyle = L.underline; ctx.fillRect(x, y + size * .16, widths[i] * u, Math.max(4, size * .035));
+        }
+        ctx.restore();
+      }
+      x += widths[i] + gap();
+    });
+    y += size * (L.after ?? .3);
+  }
+}
+
+// 1 · ¿Qué es lo que pasa?  — lila, anillos que se expanden + "?" gigante
+function sceneQue(ctx, t, f) {
+  const u = t - f.a, cy = 900;
+  ctx.save(); ctx.strokeStyle = rgba(C.tcrema, .22); ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    const r = ((u * 260 + i * 150) % 750) + 60;
+    ctx.globalAlpha = 1 - r / 810;
+    ctx.beginPath(); ctx.arc(CX, cy, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save(); ctx.translate(CX + 250, cy - 380); ctx.rotate(.12 - u * .08);
+  setFont(ctx, sans(620, 700), 0); ctx.textAlign = 'center'; ctx.fillStyle = rgba(C.tcrema, .1);
+  ctx.fillText('?', 0, 200); ctx.restore();
+  kinetic(ctx, t, f, [
+    { n: 4, size: 112, color: C.tcrema },
+    { n: 1, size: 270, color: C.tcrema, before: .78 },
+  ], 690);
+}
+
+// 2 · necesitas acercarte e ir tras él — oliva, un punto persigue al otro
+function sceneTras(ctx, t, f) {
+  const u = t - f.a, y = 560;
+  const path = s => [lerp(-80, W + 80, s), y + Math.sin(s * Math.PI * 2.2) * 70];
+  const lead = (u * .28 + .22), chase = lead - .1 - .03 * Math.sin(u * 3);
+  ctx.save(); ctx.setLineDash([3, 16]); ctx.lineCap = 'round'; ctx.strokeStyle = rgba(C.tcrema, .55); ctx.lineWidth = 4;
+  ctx.beginPath();
+  for (let s = Math.max(0, chase - .35); s <= lead; s += .005) { const [px, py] = path(s); s === Math.max(0, chase - .35) ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+  ctx.stroke(); ctx.restore();
+  let [lx, ly] = path(lead); ctx.fillStyle = C.tcrema; ctx.beginPath(); ctx.arc(lx, ly, 20, 0, 7); ctx.fill();
+  let [qx, qy] = path(chase); ctx.strokeStyle = C.tcrema; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(qx, qy, 26, 0, 7); ctx.stroke();
+  setFont(ctx, sans(18, 500), 3); ctx.fillStyle = rgba(C.tcrema, .8); ctx.textAlign = 'center';
+  ctx.globalAlpha = E.outCubic(prog(u, .1, .5));
+  ctx.fillText('EL JUEGO DEL GATO Y EL RATÓN', CX, 380); ctx.globalAlpha = 1;
+  kinetic(ctx, t, f, [
+    { n: 1, size: 70, w: 600, color: C.tcrema, ls: -1 },
+    { n: 1, size: 176, color: C.tcrema, before: .95 },
+    { n: 4, size: 150, script: true, ls: 0, color: C.tcrema, before: 1.05 },
+  ], 760);
+  signature(ctx, C.tcrema, E.outCubic(prog(u, .4, .9)));
+}
+
+// 3 · El problema es que nunca terminas de sentirte cómodo — crema, diván que se dibuja y se mece
+function sceneComodo(ctx, t, f) {
+  const u = t - f.a;
+  const rock = Math.sin(u * 4.2) * .07 * E.outCubic(prog(u, .8, 1.4));
+  ctx.save(); ctx.fillStyle = rgba(C.lila, .14); ctx.beginPath(); ctx.ellipse(CX, 560, 300 * E.outCubic(prog(u, 0, .8)), 26, 0, 0, 7); ctx.fill(); ctx.restore();
+  divan(ctx, CX, 430, 460, C.morado, 5, E.inOutCubic(prog(u, .05, 1.1)), rock);
+  kinetic(ctx, t, f, [
+    { n: 4, size: 58, w: 500, color: C.lila, ls: -0.5 },
+    { n: 2, size: 116, color: C.morado, before: 1.1 },
+    { n: 2, size: 116, color: C.morado, before: .95 },
+    { n: 1, size: 190, script: true, ls: 0, color: C.lila, before: 1.05, text: ['cómodo'] },
+  ], 690);
+  signature(ctx, C.morado, E.outCubic(prog(u, .5, 1)));
+}
+
+// 4 · El reconocer este patrón — lila, retícula de puntos y una lente que la recorre
+function scenePatron(ctx, t, f) {
+  const u = t - f.a, cols = 9, sp = 112, ox = CX - (cols - 1) * sp / 2;
+  const lx = lerp(120, 960, E.inOutSine(prog(u, .2, 1.75))), ly = 1080 + Math.sin(u * 3) * 120;
+  for (let r = 0; r < 16; r++) for (let c = 0; c < cols; c++) {
+    const x = ox + c * sp + (r % 2) * sp / 2, y = 100 + r * sp;
+    const k = E.outBack(prog(u, (r + c) * .025, (r + c) * .025 + .35));
+    const d = Math.hypot(x - lx, y - ly), near = clamp(1 - d / 230);
+    ctx.fillStyle = rgba(C.tcrema, .16 + near * .5);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(0, k * (4 + near * 9)), 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = rgba(C.tcrema, .7); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(lx, ly, 150 * E.outBack(prog(u, .15, .55)), 0, 7); ctx.stroke();
+  kinetic(ctx, t, f, [
+    { n: 2, size: 76, w: 600, color: C.tcrema, ls: -1 },
+    { n: 1, size: 76, w: 600, color: C.tcrema, ls: -1, before: 1.05 },
+    { n: 1, size: 230, color: C.tcrema, before: .92, underline: C.oliva },
+  ], 560);
+  signature(ctx, C.tcrema, E.outCubic(prog(u, .4, .9)));
+}
+
+// 5 · no se sienta tan intimidante — oliva, dos círculos que se acercan con calma
+function sceneCercania(ctx, t, f) {
+  const u = t - f.a, cy = 500, k = E.inOutCubic(prog(u, .05, 1.6)), d = lerp(330, 120, k);
+  ctx.save();
+  ctx.fillStyle = rgba(C.tcrema, .22 * k);
+  ctx.beginPath(); ctx.arc(CX - d / 2, cy, 170, 0, 7); ctx.clip();
+  ctx.beginPath(); ctx.arc(CX + d / 2, cy, 170, 0, 7); ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = C.tcrema; ctx.lineWidth = 3;
+  const r = 170 * E.outBack(prog(u, 0, .4));
+  [CX - d / 2, CX + d / 2].forEach(x => { ctx.beginPath(); ctx.arc(x, cy, r, 0, 7); ctx.stroke(); });
+  kinetic(ctx, t, f, [
+    { n: 3, size: 84, w: 600, color: C.tcrema, ls: -1 },
+    { n: 1, size: 84, w: 600, color: C.tcrema, ls: -1, before: 1.05 },
+    { n: 1, size: 150, color: C.tcrema, before: 1 },
+  ], 860);
+  signature(ctx, C.tcrema, E.outCubic(prog(u, .4, .9)));
+}
+
+const LOOK = [
+  { under: C.crema, bg: C.lila },
+  { under: C.lila, bg: C.oliva },
+  { under: C.oliva, bg: C.crema },
+  { under: C.oliva, bg: C.lila },
+  { under: C.crema, bg: C.oliva },
+];
+function drawFull(ctx, t) {
+  FULL.forEach((f, i) => {
+    if (t < f.a - T_IN || t > f.b + T_OUT) return;
+    const [top, bot] = wipe(ctx, t, f, LOOK[i].under, LOOK[i].bg);
+    if (bot <= top) return;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip();
+    // el contenido acompaña al barrido de salida
+    ctx.translate(0, -E.inOutExpo(prog(t, f.b - T_OUT - .04, f.b + T_OUT - .04)) * 160);
+    f.draw(ctx, t, f);
+    ctx.restore();
+  });
+}
+
+// Cierre: firma de marca sobre el video cuando termina la voz
+function drawOutro(ctx, t) {
+  const t0 = WORDS.at(-1).e + .5, end = FRAMES / FPS;
+  if (t < t0) return;
+  const a = E.outCubic(prog(t, t0, t0 + .8)) * (1 - E.inOutCubic(prog(t, end - .6, end)));
+  ctx.save(); ctx.globalAlpha = a;
+  shadow(ctx, true, 24, .45);
+  divan(ctx, CX, 1150, 260, C.tcrema, 3.5, E.inOutCubic(prog(t, t0, t0 + 1.6)));
+  setFont(ctx, sans(34, 500), 7); ctx.fillStyle = C.tcrema; ctx.textAlign = 'center';
+  ctx.globalAlpha = a * E.outCubic(prog(t, t0 + .6, t0 + 1.3));
+  ctx.fillText('EL DIVÁN ABIERTO', CX + 3.5, 1290);
+  ctx.globalAlpha = a * E.outCubic(prog(t, t0 + 1.3, t0 + 2.1));
+  setFont(ctx, script(72), 0);
+  ctx.fillText('Abierto a lo que sientes', CX, 1410);
+  ctx.restore();
+}
+
+// =========================================================================
+const cv = document.getElementById('out'), ctx = cv.getContext('2d');
+function render(t) {
+  ctx.clearRect(0, 0, W, H);
+  drawSubs(ctx, t);
+  drawFull(ctx, t);
+  drawOutro(ctx, t);
+}
+window.FRAMES = FRAMES;
+window.init = async srt => {
+  WORDS = parseSrt(srt); buildGroups();
+  await Promise.all([sans(66, 700), sans(66, 600), sans(66, 500), sans(66, 400), script(66)].map(f => document.fonts.load(f, 'ÁÉÍÓÚáéíóúñ¿?')));
+  return GROUPS.length;
+};
+window.renderFrame = i => { render(i / FPS); return cv.toDataURL('image/png'); };
+</script>
+</body>
+</html>
