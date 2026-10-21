@@ -2,6 +2,11 @@
 
 Capa para Instagram (1080×1920, 24 fps, 1513 cuadros = 00:01:03:01) con fondo transparente para poner encima del video grabado.
 
+Identidad de Germán Mendiola:
+- Colores: oscuro `#141313`, crema `#f2ecdd` (es el "fondo blanco") y dorado `#cd9c20`. El dorado nunca se usa de fondo: solo va en texto, líneas, contornos e íconos.
+- Tipografías: Cal Sans para títulos, en minúsculas como el logo, y Raleway para etiquetas y subtítulos. Ambas están en `fonts/`.
+- Logo: la palabra "german mendiola" va en una pestaña sobre la línea dorada de los paneles negros y arriba al centro en las pantallas completas.
+
 - `out/reel_20oct_preview.mp4`: vista previa sobre un fondo gris de referencia.
 - `out/reel_20oct_overlay_alpha.webm`: capa con transparencia (VP9 con alfa), archivo ligero.
 - `out/reel_20oct_overlay_alpha.mov`: máster ProRes 4444 con alfa (no está en git, se regenera con el renderizador).
@@ -20,7 +25,7 @@ Capa para Instagram (1080×1920, 24 fps, 1513 cuadros = 00:01:03:01) con fondo t
 | 00:00:54:11–57:00 | Mitad de arriba (negro) | 3 opciones: ¿cuál es la correcta? |
 | 00:00:58:08–59:23 | Pantalla completa (blanco) | ¿En qué etapa estás? |
 
-Los subtítulos salen palabra por palabra de `subs.srt` (la palabra que se está diciendo va en verde lima). Dentro de los paneles negros se colocan en la parte baja del panel. Durante las pantallas completas se ocultan porque la animación ya muestra el texto.
+Los subtítulos salen palabra por palabra de `subs.srt` (la palabra que se está diciendo va en dorado). Dentro de los paneles negros se colocan en la parte baja del panel. Durante las pantallas completas se ocultan porque la animación ya muestra el texto.
 
 ## Volver a renderizar
 

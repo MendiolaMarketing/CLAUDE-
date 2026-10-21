@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <title>Reel 20 Octubre</title>
 <style>
+  @font-face{font-family:'Cal Sans';src:url('fonts/CalSans-Regular.ttf');}
+  @font-face{font-family:'Raleway';src:url('fonts/Raleway-VariableFont_wght.ttf');font-weight:100 900;}
   html,body{margin:0;background:#3a3a3a;}
   canvas{display:block;}
 </style>
@@ -19,9 +21,10 @@
    ========================================================================= */
 const W = 1080, H = 1920, HALF = 960;
 const FPS = 24, FRAMES = 63 * FPS + 1; // duración 00:01:03:01 = 1513 cuadros
-const C = { k: '#0A0A0A', w: '#FFFFFF', lime: '#D4FF3A', red: '#FF3B2F', gray: '#8C8C8C', soft: '#ECECEC', mid: '#3A3A3A' };
-const DISP = '"Inter Display","Inter",sans-serif';
-const MONO = '"JetBrains Mono",monospace';
+// Germán Mendiola: oscuro #141313, crema #f2ecdd, dorado #cd9c20 (el dorado nunca va de fondo)
+const C = { k: '#141313', w: '#F2ECDD', lime: '#CD9C20', red: '#CD9C20', gray: '#8E887B', soft: '#E3DBC7', mid: '#3A3836' };
+const DISP = '"Cal Sans",sans-serif';   // títulos (solo tiene peso regular)
+const MONO = '"Raleway",sans-serif';    // etiquetas y textos
 const TAU = Math.PI * 2;
 
 // ---------- math ----------
@@ -45,6 +48,7 @@ const pop = (t, t0, d = .45) => E.outBackBig(prog(t, t0, t0 + d));
 
 // ---------- text ----------
 function setF(ctx, size, weight = 900, family = DISP, track = 0) {
+  if (family === DISP) weight = 400; // avoid faux bold on Cal Sans
   ctx.font = `${weight} ${size}px ${family}`; ctx.letterSpacing = track + 'px';
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 }
@@ -68,7 +72,7 @@ function rise(ctx, s, x, y, o, t, t0, tOut = null) {
   ctx.save(); setF(ctx, size, weight, family, track); ctx.fillStyle = color;
   const w = tw(ctx, s, track);
   const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
-  const top = y - size * .84, bot = y + size * .2;
+  const top = y - size * .9, bot = y + size * .3;
   ctx.beginPath(); ctx.rect(x0 - size, top, w + size * 2, bot - top); ctx.clip();
   let cx = x0;
   for (let i = 0; i < s.length; i++) {
@@ -136,9 +140,9 @@ function clock(ctx, x, y, r, t, color, lw, speed = 1) {
 function coin(ctx, x, y, r, t, fill, ink) {
   const sx = Math.cos(t * 5.5);
   ctx.save(); ctx.translate(x, y); ctx.scale(Math.max(.08, Math.abs(sx)), 1);
-  ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fill();
-  ctx.strokeStyle = ink; ctx.lineWidth = r * .07; ctx.beginPath(); ctx.arc(0, 0, r * .8, 0, TAU); ctx.stroke();
-  if (sx > 0) T(ctx, '$', 0, r * .36, { size: r * 1.05, weight: 900, color: ink, align: 'center' });
+  ctx.strokeStyle = fill; ctx.lineWidth = r * .11; ctx.beginPath(); ctx.arc(0, 0, r * .94, 0, TAU); ctx.stroke();
+  ctx.lineWidth = r * .05; ctx.beginPath(); ctx.arc(0, 0, r * .74, 0, TAU); ctx.stroke();
+  if (sx > 0) T(ctx, '$', 0, r * .36, { size: r * 1.0, color: fill, align: 'center' });
   ctx.restore();
 }
 function bulb(ctx, x, y, s, color, lw, glow = 0) {
@@ -210,7 +214,7 @@ function play(ctx, x, y, s, color) {
   ctx.save(); ctx.fillStyle = color; ctx.beginPath();
   ctx.moveTo(x - s * .32, y - s * .4); ctx.lineTo(x + s * .42, y); ctx.lineTo(x - s * .32, y + s * .4); ctx.closePath(); ctx.fill(); ctx.restore();
 }
-function pinIcon(ctx, x, y, s, fill, ink) {
+function pinIcon(ctx, x, y, s, ink, fill) {
   ctx.save(); ctx.fillStyle = fill;
   ctx.beginPath(); ctx.arc(x, y - s * .55, s * .45, Math.PI * .8, Math.PI * 2.2); ctx.lineTo(x, y); ctx.closePath(); ctx.fill();
   T(ctx, '?', x, y - s * .38, { size: s * .55, color: ink, align: 'center' });
@@ -255,6 +259,15 @@ function panelA(ctx, t, seg, body) {
   if (h > 1) { // lime seam
     const th = lerp(34, 8, E.outCubic(prog(t, seg.t0 + .15, seg.t0 + .55))) + 26 * E.inExpo(prog(t, seg.t1 - .22, seg.t1)) * (seg.hold ? 0 : 1);
     ctx.fillStyle = C.lime; ctx.fillRect(0, h - th / 2, W, th);
+    // logo tab sitting on the seam
+    const a = clamp((h - 700) / 200);
+    if (a > 0) {
+      ctx.save(); ctx.globalAlpha = a;
+      ctx.fillStyle = C.k; rrect(ctx, 748, h - 26, 270, 52, 26); ctx.fill();
+      ctx.strokeStyle = C.lime; ctx.lineWidth = 3; rrect(ctx, 749.5, h - 24.5, 267, 49, 24.5); ctx.stroke();
+      ctx.restore();
+      wordmark(ctx, 883, h + 10, 29, C.lime, a);
+    }
   }
 }
 function panelB(ctx, t, seg, body) {
@@ -269,10 +282,16 @@ function panelB(ctx, t, seg, body) {
   ctx.fillStyle = C.w; ctx.fillRect(0, 0, W, H);
   gridBG(ctx, t, false, 0, H);
   ctx.translate(0, top * .6);
+  wordmark(ctx, 540, 190, 40, C.k, E.outCubic(prog(t, seg.t0 + .1, seg.t0 + .4)));
   body();
   ctx.restore();
   const th = 44 * (1 - E.outCubic(prog(t, seg.t0 + .12, seg.t0 + .5))) + 44 * E.inCubic(prog(t, seg.t1 - .2, seg.t1)) * (seg.hold ? 0 : 1);
   if (th > .5 && top < H) { ctx.fillStyle = C.lime; ctx.fillRect(0, top - th, W, th); }
+}
+// brand wordmark (Cal Sans, lowercase like the logo)
+function wordmark(ctx, x, y, size, color, alpha = 1, align = 'center') {
+  if (alpha <= 0) return;
+  T(ctx, 'german mendiola', x, y, { size, color, align, alpha, track: -size * .02 });
 }
 // small mono tag in a pill
 function tag(ctx, s, x, y, p, fill, ink, align = 'left') {
@@ -281,7 +300,8 @@ function tag(ctx, s, x, y, p, fill, ink, align = 'left') {
   const w = tw(ctx, s, 6) + 52, h = 58;
   const x0 = align === 'center' ? x - w / 2 : x;
   ctx.globalAlpha = clamp(p * 3);
-  ctx.fillStyle = fill; rrect(ctx, x0, y - h / 2, w * E.outExpo(p), h, h / 2); ctx.fill();
+  if (fill === C.lime) { ctx.strokeStyle = fill; ctx.lineWidth = 3; rrect(ctx, x0 + 1.5, y - h / 2 + 1.5, w * E.outExpo(p) - 3, h - 3, h / 2); ctx.stroke(); ink = C.lime; }
+  else { ctx.fillStyle = fill; rrect(ctx, x0, y - h / 2, w * E.outExpo(p), h, h / 2); ctx.fill(); }
   ctx.beginPath(); ctx.rect(x0, y - h, w * E.outExpo(p), h * 2); ctx.clip();
   ctx.fillStyle = ink; ctx.fillText(s, x0 + 26, y + 11);
   ctx.restore();
@@ -296,27 +316,27 @@ function sA1(ctx, t, seg) {
     ctx.save(); punch(ctx, t, [[2.96, 1], [3.59, .7], [4.34, .9]], 540, 480);
     const k = E.inOutExpo(prog(t, 3.42, 3.78));
     // headline: DEPENDE DE / 2 COSAS
-    rise(ctx, 'DEPENDE DE', 540, lerp(330, 196, k), { size: lerp(76, 46, k), weight: 800, track: lerp(14, 10, k), align: 'center' }, t, 2.42);
-    const s2 = lerp(fit(ctx, '2 COSAS', 900, 250), 112, k), y2 = lerp(590, 318, k);
+    rise(ctx, 'DEPENDE DE', 540, lerp(330, 196, k), { size: lerp(66, 42, k), weight: 800, family: MONO, track: lerp(16, 12, k), align: 'center' }, t, 2.42);
+    const s2 = lerp(fit(ctx, '2 cosas', 900, 260), 116, k), y2 = lerp(590, 318, k);
     const p2 = pop(t, 2.93, .5);
     if (p2 > 0) {
       ctx.save(); around(ctx, 540, y2 - s2 * .35, p2, (1 - p2) * -.2);
       ctx.save(); setF(ctx, s2, 900, DISP, -s2 * .03);
-      const w2 = tw(ctx, '2 ', -s2 * .03), wAll = tw(ctx, '2 COSAS', -s2 * .03); ctx.restore();
+      const w2 = tw(ctx, '2 ', -s2 * .03), wAll = tw(ctx, '2 cosas', -s2 * .03); ctx.restore();
       T(ctx, '2', 540 - wAll / 2, y2, { size: s2, color: C.lime, track: -s2 * .03 });
-      rise(ctx, 'COSAS', 540 - wAll / 2 + w2, y2, { size: s2, track: -s2 * .03 }, t, 3.16);
+      rise(ctx, 'cosas', 540 - wAll / 2 + w2, y2, { size: s2, track: -s2 * .03 }, t, 3.16);
       ctx.restore();
     }
     // cards
-    const cards = [[290, 3.56, 'TIEMPO'], [790, 4.31, 'DINERO']];
+    const cards = [[290, 3.56, 'tiempo'], [790, 4.31, 'dinero']];
     cards.forEach(([x, t0, label], i) => {
       const p = pop(t, t0, .5); if (p <= 0) return;
       ctx.save(); around(ctx, x, 560, p, (1 - p) * (i ? .5 : -.5));
-      ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.arc(x, 560, 140, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1f1d1c'; ctx.beginPath(); ctx.arc(x, 560, 140, 0, TAU); ctx.fill();
       if (i === 0) clock(ctx, x, 560, 96, t, C.lime, 11, 1.4);
       else coin(ctx, x, 560, 96, t - t0, C.lime, C.k);
       ctx.restore();
-      rise(ctx, label, x, 790, { size: 78, align: 'center', track: 2 }, t, t0 + .06);
+      rise(ctx, label, x, 790, { size: 84, align: 'center' }, t, t0 + .06);
     });
     const pp = pop(t, 4.2, .4);
     if (pp > 0) { ctx.save(); around(ctx, 540, 560, pp, (1 - pp) * 2); T(ctx, '+', 540, 590, { size: 110, color: C.lime, align: 'center' }); ctx.restore(); }
@@ -327,8 +347,8 @@ function sA1(ctx, t, seg) {
 // meter row used by the three "OPCIÓN" title cards (B1, B3, B4)
 function meterRow(ctx, t, y, qual, word, tq, tw0, fillTo, tFill, kind) {
   if (qual) rise(ctx, qual, 96, y, { size: 50, weight: 700, family: MONO, track: 12, color: C.k }, t, tq);
-  const sz = fit(ctx, word, 888, 210, 900, DISP, -6);
-  rise(ctx, word, 92, y + 20 + sz * .78, { size: sz, track: -6, color: C.k, stagger: .02 }, t, tw0);
+  const sz = fit(ctx, word, 650, 200, 900, DISP, -4);
+  rise(ctx, word, 92, y + 20 + sz * .78, { size: sz, track: -4, color: C.k, stagger: .02 }, t, tw0);
   const by = y + 70 + sz * .78, bw = 888, bh = 70;
   const pa = E.outExpo(prog(t, tw0, tw0 + .3));
   if (pa <= 0) return;
@@ -337,14 +357,11 @@ function meterRow(ctx, t, y, qual, word, tq, tw0, fillTo, tFill, kind) {
   const fw = Math.max(bh, bw * f);
   if (fillTo > 0) {
     ctx.fillStyle = kind === 'time' ? C.k : C.lime; rrect(ctx, 96, by, fw, bh, bh / 2); ctx.fill();
-    if (kind !== 'time') { ctx.strokeStyle = C.k; ctx.lineWidth = 5; rrect(ctx, 98.5, by + 2.5, fw - 5, bh - 5, bh / 2); ctx.stroke(); }
   } else { // empty: red pulse dot
     ctx.fillStyle = C.red; ctx.globalAlpha = .6 + .4 * Math.sin(t * 14); ctx.beginPath(); ctx.arc(96 + bh / 2, by + bh / 2, bh * .24, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
   }
   const pct = Math.round(100 * f) + '%';
-  const tx = fillTo > .25 ? 96 + fw - 26 : 96 + fw + 26;
-  const inside = fillTo > .25;
-  T(ctx, pct, tx, by + bh / 2 + 15, { size: 42, weight: 700, family: MONO, color: inside ? (kind === 'time' ? C.w : C.k) : C.k, align: inside ? 'right' : 'left', alpha: clamp(prog(t, tFill, tFill + .1)) });
+  T(ctx, pct, 984, y + 20 + sz * .78, { size: 96, color: C.k, align: 'right', alpha: clamp(prog(t, tFill, tFill + .1)) });
   ctx.restore();
 }
 function optionHeader(ctx, t, t0, n, label) {
@@ -356,8 +373,8 @@ function sB1(ctx, t, seg) {
   panelB(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[5.17, .8], [6.0, .9]], 540, 960);
     optionHeader(ctx, t, 4.92, '01', 'TÚ LO HACES TODO');
-    meterRow(ctx, t, 600, 'MUCHO', 'TIEMPO', 4.88, 5.14, 1, 5.25, 'time');
-    meterRow(ctx, t, 1130, 'POCO', 'DINERO', 5.6, 5.98, 0, 6.05, 'money');
+    meterRow(ctx, t, 600, 'MUCHO', 'tiempo', 4.88, 5.14, 1, 5.25, 'time');
+    meterRow(ctx, t, 1130, 'POCO', 'dinero', 5.6, 5.98, 0, 6.05, 'money');
     ctx.restore();
   });
 }
@@ -366,8 +383,8 @@ function sB2(ctx, t, seg) {
   panelB(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[8.76, .6], [9.3, .6], [10.01, .6], [10.68, .9]], 540, 960);
     tag(ctx, 'OPCIÓN 01', 540, 290, prog(t, 8.62, 9.0), C.k, C.lime, 'center');
-    rise(ctx, 'TÚ HACES TODO', 540, 470, { size: fit(ctx, 'TÚ HACES TODO', 900, 130, 900, DISP, -4), track: -4, color: C.k, align: 'center' }, t, 8.64);
-    const steps = [['IDEA', 8.74, bulb], ['GRABAR', 9.28, rec], ['EDITAR', 9.99, timeline], ['PUBLICAR', 10.66, plane]];
+    rise(ctx, 'tú haces todo', 540, 470, { size: fit(ctx, 'tú haces todo', 900, 140, 900, DISP, -3), track: -3, color: C.k, align: 'center' }, t, 8.64);
+    const steps = [['idea', 8.74, bulb], ['grabar', 9.28, rec], ['editar', 9.99, timeline], ['publicar', 10.66, plane]];
     const times = steps.map(s => s[1]);
     steps.forEach(([label, t0, icon], i) => {
       const x = i % 2 ? 560 : 100, y = i < 2 ? 560 : 1020, s = 420;
@@ -386,7 +403,7 @@ function sB2(ctx, t, seg) {
       if (icon === bulb) bulb(ctx, ix, iy, isz, ink, 12, dark ? 1 : 0);
       else icon(ctx, ix, iy, isz, t, ink, 12);
       ctx.restore();
-      T(ctx, label, ix, y + s - 50, { size: 56, color: dark ? C.w : C.k, align: 'center', track: 2 });
+      T(ctx, label, ix, y + s - 50, { size: 62, color: dark ? C.w : C.k, align: 'center' });
       ctx.restore();
     });
     ctx.restore();
@@ -396,11 +413,11 @@ function sB2(ctx, t, seg) {
 function sA2(ctx, t, seg) {
   panelA(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[13.2, .45], [14.6, .45], [16.0, .45]], 540, 480);
-    rise(ctx, 'SOLO NECESITAS', 96, 205, { size: 64, weight: 800, track: 6 }, t, 11.4);
+    rise(ctx, 'SOLO NECESITAS', 96, 205, { size: 52, weight: 800, family: MONO, track: 12 }, t, 11.4);
     const rows = [
-      ['CELULAR', 'que grabe decente', 12.12, 13.2, phone],
-      ['LUZ NATURAL', 'iluminación del día', 13.54, 14.62, sun],
-      ['CERO RUIDO', 'un lugar silencioso', 15.04, 16.0, mute],
+      ['celular', 'que grabe decente', 12.12, 13.2, phone],
+      ['luz natural', 'iluminación del día', 13.54, 14.62, sun],
+      ['cero ruido', 'un lugar silencioso', 15.04, 16.0, mute],
     ];
     rows.forEach(([lab, sub, t0, tc, icon], i) => {
       const y = 365 + i * 182;
@@ -409,14 +426,14 @@ function sA2(ctx, t, seg) {
       ctx.strokeStyle = C.lime; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(160, y, 66, 0, TAU); ctx.stroke();
       icon(ctx, 160, y, 76, t, C.lime, 7);
       ctx.restore();
-      rise(ctx, lab, 262, y + 12, { size: 70, track: 1 }, t, t0 + .05);
-      T(ctx, sub, 264, y + 58, { size: 30, weight: 500, family: MONO, color: C.gray, alpha: E.outCubic(prog(t, t0 + .2, t0 + .5)) });
+      rise(ctx, lab, 262, y + 10, { size: 76 }, t, t0 + .05);
+      T(ctx, sub, 264, y + 58, { size: 32, weight: 600, family: MONO, color: C.gray, alpha: E.outCubic(prog(t, t0 + .2, t0 + .5)) });
       const pc = prog(t, tc, tc + .3);
       if (pc > 0) {
         const s = E.outBackBig(prog(t, tc, tc + .35));
         ctx.save(); around(ctx, 942, y, s);
-        ctx.fillStyle = C.lime; ctx.beginPath(); ctx.arc(942, y, 44, 0, TAU); ctx.fill();
-        check(ctx, 942, y + 2, 46, E.outCubic(prog(t, tc + .05, tc + .3)), C.k, 10);
+        ctx.strokeStyle = C.lime; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(942, y, 44, 0, TAU); ctx.stroke();
+        check(ctx, 942, y + 2, 46, E.outCubic(prog(t, tc + .05, tc + .3)), C.lime, 9);
         ctx.restore();
       }
     });
@@ -428,15 +445,14 @@ function sB3(ctx, t, seg) {
   panelB(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[20.44, .6], [20.9, .6], [21.36, 1.1]], 540, 960);
     optionHeader(ctx, t, 20.38, '02', 'TÚ + UN EDITOR');
-    meterRow(ctx, t, 470, '', 'TIEMPO', 0, 20.42, .5, 20.6, 'time');
-    meterRow(ctx, t, 830, 'Y', 'DINERO', 20.84, 20.88, .5, 21.0, 'money');
+    meterRow(ctx, t, 470, '', 'tiempo', 0, 20.42, .5, 20.6, 'time');
+    meterRow(ctx, t, 830, 'Y', 'dinero', 20.84, 20.88, .5, 21.0, 'money');
     // "= A LA PAR" stamp
     const p = pop(t, 21.33, .42);
     if (p > 0) {
       ctx.save(); around(ctx, 540, 1430, lerp(1.8, 1, clamp(p)) * Math.min(1, p * 1.2), -.05 * (1 - p) - .035);
-      ctx.fillStyle = C.lime; rrect(ctx, 96, 1310, 888, 240, 30); ctx.fill();
-      ctx.strokeStyle = C.k; ctx.lineWidth = 8; rrect(ctx, 100, 1314, 880, 232, 27); ctx.stroke();
-      T(ctx, '= A LA PAR', 540, 1478, { size: fit(ctx, '= A LA PAR', 800, 160, 900, DISP, -4), track: -4, color: C.k, align: 'center' });
+      ctx.fillStyle = C.k; rrect(ctx, 96, 1310, 888, 240, 30); ctx.fill();
+      T(ctx, '= a la par', 540, 1472, { size: fit(ctx, '= a la par', 780, 170, 900, DISP, -3), track: -3, color: C.lime, align: 'center' });
       ctx.restore();
     }
     ctx.restore();
@@ -453,22 +469,22 @@ function videoCard(ctx, x, y, w, h, rot, fill, stroke, ink, s = 1) {
 function sA3(ctx, t, seg) {
   panelA(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[27.07, .5], [27.99, .6], [30.07, 1.2]], 540, 480);
-    rise(ctx, 'LE PAGAS AL EDITOR', 540, 190, { size: 54, weight: 800, track: 8, align: 'center' }, t, 25.92);
+    rise(ctx, 'LE PAGAS AL EDITOR', 540, 190, { size: 46, weight: 800, family: MONO, track: 12, align: 'center' }, t, 25.92);
     const dim = 1 - .55 * E.outCubic(prog(t, 30.05, 30.3));
     // left: single video
     const pl = pop(t, 26.0, .5);
     if (pl > 0) {
       ctx.save(); ctx.globalAlpha = dim;
-      videoCard(ctx, 270, 490, 220, 360, (1 - pl) * -.6, '#151515', C.w, C.w, pl);
+      videoCard(ctx, 270, 490, 220, 360, (1 - pl) * -.6, '#1f1d1c', C.w, C.w, pl);
       ctx.restore();
-      rise(ctx, 'POR VIDEO', 270, 760, { size: 52, align: 'center', track: 2, color: dim < 1 ? C.gray : C.w }, t, 27.05);
+      rise(ctx, 'por video', 270, 760, { size: 60, align: 'center', color: dim < 1 ? C.gray : C.w }, t, 27.05);
     }
     // "o"
     const po = pop(t, 27.34, .4);
     if (po > 0) {
       ctx.save(); around(ctx, 540, 490, po, (1 - po) * 3);
-      ctx.fillStyle = C.lime; ctx.beginPath(); ctx.arc(540, 490, 50, 0, TAU); ctx.fill();
-      T(ctx, 'O', 540, 510, { size: 56, color: C.k, align: 'center' });
+      ctx.strokeStyle = C.lime; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(540, 490, 50, 0, TAU); ctx.stroke();
+      T(ctx, 'o', 540, 506, { size: 62, color: C.lime, align: 'center' });
       ctx.restore();
     }
     // right: package stack
@@ -479,21 +495,22 @@ function sA3(ctx, t, seg) {
       const fan = E.outExpo(prog(t, 28.36, 28.8));
       const rot = (i - (n - 1) / 2) * .14 * fan;
       const dx = (i - (n - 1) / 2) * 34 * fan;
-      videoCard(ctx, 810 + dx, 490 - Math.abs(i - 1.5) * 8 * fan, 210, 345, rot, i === 0 ? '#1d1d1d' : '#151515', C.w, i === 0 ? C.lime : C.w, p);
+      videoCard(ctx, 810 + dx, 490 - Math.abs(i - 1.5) * 8 * fan, 210, 345, rot, i === 0 ? '#262422' : '#1f1d1c', C.w, i === 0 ? C.lime : C.w, p);
     }
     if (t > 27.97) {
-      rise(ctx, 'POR PAQUETE', 810, 760, { size: 52, align: 'center', track: 2 }, t, 28.4);
+      rise(ctx, 'por paquete', 810, 760, { size: 60, align: 'center' }, t, 28.4);
       // x4 badge
       const pb = pop(t, 28.5, .4);
-      if (pb > 0) { ctx.save(); around(ctx, 940, 300, pb); ctx.fillStyle = C.w; ctx.beginPath(); ctx.arc(940, 300, 46, 0, TAU); ctx.fill(); T(ctx, '×4', 940, 315, { size: 42, color: C.k, align: 'center' }); ctx.restore(); }
+      if (pb > 0) { ctx.save(); around(ctx, 940, 300, pb); ctx.fillStyle = C.w; ctx.beginPath(); ctx.arc(940, 300, 46, 0, TAU); ctx.fill(); T(ctx, '×4', 940, 314, { size: 44, color: C.k, align: 'center' }); ctx.restore(); }
     }
     // stamp: MÁS ECONÓMICO
     const ps = prog(t, 30.03, 30.3);
     if (ps > 0) {
       const s = lerp(2.4, 1, E.outExpo(ps));
       ctx.save(); ctx.globalAlpha = clamp(ps * 4); around(ctx, 790, 560, s, -.12);
-      ctx.fillStyle = C.lime; rrect(ctx, 790 - 250, 560 - 62, 500, 124, 18); ctx.fill();
-      T(ctx, 'MÁS ECONÓMICO', 790, 584, { size: fit(ctx, 'MÁS ECONÓMICO', 450, 64), color: C.k, align: 'center' });
+      ctx.fillStyle = C.k; rrect(ctx, 790 - 250, 560 - 62, 500, 124, 18); ctx.fill();
+      ctx.strokeStyle = C.lime; ctx.lineWidth = 6; rrect(ctx, 790 - 247, 560 - 59, 494, 118, 16); ctx.stroke();
+      T(ctx, 'más económico', 790, 582, { size: fit(ctx, 'más económico', 440, 70), color: C.lime, align: 'center' });
       ctx.restore();
     }
     ctx.restore();
@@ -504,8 +521,8 @@ function sB4(ctx, t, seg) {
   panelB(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[35.08, .8], [35.95, 1]], 540, 960);
     optionHeader(ctx, t, 34.67, '03', 'AGENCIA / FREELANCE');
-    meterRow(ctx, t, 600, 'POCO', 'TIEMPO', 34.66, 35.05, .3, 35.15, 'time');
-    meterRow(ctx, t, 1130, 'MÁS', 'INVERSIÓN', 35.64, 35.93, .7, 36.0, 'money');
+    meterRow(ctx, t, 600, 'POCO', 'tiempo', 34.66, 35.05, .3, 35.15, 'time');
+    meterRow(ctx, t, 1130, 'MÁS', 'inversión', 35.64, 35.93, .7, 36.0, 'money');
     ctx.restore();
   });
 }
@@ -513,27 +530,28 @@ function sB4(ctx, t, seg) {
 function pill(ctx, x, y, w, h, p, label, icon, t) {
   if (p <= 0) return;
   ctx.save(); around(ctx, x, y, p, (1 - p) * .15);
-  ctx.fillStyle = '#151515'; rrect(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = '#1f1d1c'; rrect(ctx, x - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
   ctx.strokeStyle = C.w; ctx.lineWidth = 5; rrect(ctx, x - w / 2 + 2.5, y - h / 2 + 2.5, w - 5, h - 5, h / 2); ctx.stroke();
-  ctx.fillStyle = C.lime; ctx.beginPath(); ctx.arc(x - w / 2 + h / 2 + 6, y, h / 2 - 16, 0, TAU); ctx.fill();
-  icon(ctx, x - w / 2 + h / 2 + 6, y, h * .5, C.k, 6);
-  T(ctx, label, x - w / 2 + h + 34, y + 30, { size: 84, track: 2 });
+  ctx.strokeStyle = C.lime; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x - w / 2 + h / 2 + 6, y, h / 2 - 16, 0, TAU); ctx.stroke();
+  icon(ctx, x - w / 2 + h / 2 + 6, y, h * .5, C.lime, 6);
+  T(ctx, label, x - w / 2 + h + 34, y + 28, { size: 92 });
   ctx.restore();
 }
 function sA4(ctx, t, seg) {
   panelA(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[38.87, .6], [39.37, .6], [40.04, 1.1]], 540, 480);
-    pill(ctx, 540, 250, 700, 150, pop(t, 38.85, .45), 'AGENCIA', building, t);
+    pill(ctx, 540, 250, 700, 150, pop(t, 38.85, .45), 'agencia', building, t);
     const po = pop(t, 39.27, .35);
-    if (po > 0) { ctx.save(); around(ctx, 540, 390, po); T(ctx, 'o', 540, 412, { size: 80, weight: 700, color: C.lime, align: 'center' }); ctx.restore(); }
-    pill(ctx, 540, 530, 700, 150, pop(t, 39.35, .45), 'FREELANCE', person, t);
+    if (po > 0) { ctx.save(); around(ctx, 540, 390, po); T(ctx, 'o', 540, 412, { size: 84, color: C.lime, align: 'center' }); ctx.restore(); }
+    pill(ctx, 540, 530, 700, 150, pop(t, 39.35, .45), 'freelance', person, t);
     // banner
     const pb = prog(t, 39.95, 40.2);
     if (pb > 0) {
       const s = lerp(1.6, 1, E.outExpo(pb));
       ctx.save(); ctx.globalAlpha = clamp(pb * 4); around(ctx, 540, 740, s, -.03);
-      ctx.fillStyle = C.lime; rrect(ctx, 80, 672, 920, 136, 20); ctx.fill();
-      T(ctx, 'SE ENCARGA DE TODO', 540, 764, { size: fit(ctx, 'SE ENCARGA DE TODO', 820, 80), color: C.k, align: 'center' });
+      ctx.fillStyle = C.k; rrect(ctx, 80, 672, 920, 136, 20); ctx.fill();
+      ctx.strokeStyle = C.lime; ctx.lineWidth = 6; rrect(ctx, 83, 675, 914, 130, 18); ctx.stroke();
+      T(ctx, 'se encarga de todo', 540, 762, { size: fit(ctx, 'se encarga de todo', 820, 88), color: C.lime, align: 'center' });
       ctx.restore();
     }
     ctx.restore();
@@ -547,30 +565,30 @@ function sA5(ctx, t, seg) {
     const pc = pop(t, 44.9, .55);
     if (pc > 0) {
       ctx.save(); around(ctx, 230, 380, pc, (1 - pc) * -1);
-      ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.arc(230, 380, 140, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1f1d1c'; ctx.beginPath(); ctx.arc(230, 380, 140, 0, TAU); ctx.fill();
       // hours spin up when "horas" lands
       const sp = 1 + 6 * E.inOutCubic(prog(t, 45.7, 46.4));
       clock(ctx, 230, 380, 104, 44.9 + (t - 44.9) * sp, C.lime, 11, 1);
       ctx.restore();
     }
-    rise(ctx, 'MUCHÍSIMAS', 410, 345, { size: fit(ctx, 'MUCHÍSIMAS', 590, 96), track: -1 }, t, 45.68);
-    rise(ctx, 'HORAS', 406, 485, { size: 160, track: -4, color: C.lime }, t, 46.19);
-    const chips = [['GRABANDO', 46.84], ['EDITANDO', 47.3], ['IDEAS', 48.13], ['ETCÉTERA', 48.76]];
+    rise(ctx, 'muchísimas', 410, 335, { size: fit(ctx, 'muchísimas', 590, 104), track: -1 }, t, 45.68);
+    rise(ctx, 'horas', 406, 480, { size: 170, track: -3, color: C.lime }, t, 46.19);
+    const chips = [['grabando', 46.84], ['editando', 47.3], ['ideas', 48.13], ['etcétera', 48.76]];
     chips.forEach(([lab, t0], i) => {
       const x = i % 2 ? 560 : 96, y = i < 2 ? 580 : 708, w = 424, h = 104;
       const p = pop(t, t0, .4); if (p <= 0) return;
       const ks = E.outExpo(prog(t, t0 + .25, t0 + .5));
       ctx.save(); around(ctx, x + w / 2, y + h / 2, p);
       ctx.strokeStyle = mixC(ks); ctx.lineWidth = 4; rrect(ctx, x + 2, y + 2, w - 4, h - 4, 18); ctx.stroke();
-      T(ctx, lab, x + w / 2, y + 70, { size: 54, align: 'center', track: 2, color: ks > .5 ? '#6a6a6a' : C.w });
-      ctx.save(); setF(ctx, 54, 900, DISP, 2); const lw = tw(ctx, lab, 2); ctx.restore();
+      T(ctx, lab, x + w / 2, y + 70, { size: 60, align: 'center', color: ks > .5 ? '#6b665e' : C.w });
+      ctx.save(); setF(ctx, 60, 900, DISP, 0); const lw = tw(ctx, lab, 0); ctx.restore();
       ctx.fillStyle = C.lime; ctx.fillRect(x + w / 2 - lw / 2 - 14, y + h / 2 - 4, (lw + 28) * ks, 9);
       ctx.restore();
     });
     ctx.restore();
   });
 }
-const mixC = k => k > .5 ? '#3a3a3a' : C.w;
+const mixC = k => k > .5 ? '#3a3836' : C.w;
 // A6 — "No es que alguna de las tres opciones sea la correcta"
 function sA6(ctx, t, seg) {
   panelA(ctx, t, seg, () => {
@@ -578,13 +596,13 @@ function sA6(ctx, t, seg) {
     const p3 = pop(t, 54.5, .5);
     if (p3 > 0) {
       ctx.save(); around(ctx, 540, 175, p3);
-      ctx.save(); setF(ctx, 70, 900, DISP, 2); const w = tw(ctx, '3 OPCIONES', 2); ctx.restore();
-      T(ctx, '3', 540 - w / 2, 200, { size: 70, color: C.lime, track: 2 });
-      ctx.save(); setF(ctx, 70, 900, DISP, 2); const w3 = tw(ctx, '3 ', 2); ctx.restore();
-      T(ctx, 'OPCIONES', 540 - w / 2 + w3, 200, { size: 70, track: 2 });
+      ctx.save(); setF(ctx, 80, 900, DISP, 0); const w = tw(ctx, '3 opciones', 0); ctx.restore();
+      T(ctx, '3', 540 - w / 2, 200, { size: 80, color: C.lime });
+      ctx.save(); setF(ctx, 80, 900, DISP, 0); const w3 = tw(ctx, '3 ', 0); ctx.restore();
+      T(ctx, 'opciones', 540 - w / 2 + w3, 200, { size: 80 });
       ctx.restore();
     }
-    const opts = [['TÚ SOLO', 1, 0], ['+ EDITOR', .5, .5], ['AGENCIA', .3, .7]];
+    const opts = [['tú solo', 1, 0], ['+ editor', .5, .5], ['agencia', .3, .7]];
     // selector hops between cards, then all light up on "correcta"
     const hop = t >= 55.75 && t < 56.62 ? Math.floor((t - 55.75) / .145) % 3 : -1;
     const all = E.outExpo(prog(t, 56.62, 56.8));
@@ -593,14 +611,14 @@ function sA6(ctx, t, seg) {
       const p = pop(t, 54.62 + i * .12, .45); if (p <= 0) return;
       const lit = Math.max(hop === i ? 1 : 0, all);
       ctx.save(); around(ctx, x, y, p * (1 + .05 * lit), (1 - p) * .4);
-      ctx.fillStyle = lit > .5 ? '#1c1c1c' : '#141414'; rrect(ctx, x - w / 2, y - h / 2, w, h, 28); ctx.fill();
-      ctx.strokeStyle = lit > 0 ? C.lime : '#4a4a4a'; ctx.lineWidth = lit > 0 ? 8 : 4; rrect(ctx, x - w / 2 + 4, y - h / 2 + 4, w - 8, h - 8, 24); ctx.stroke();
+      ctx.fillStyle = lit > .5 ? '#262422' : '#1c1b1a'; rrect(ctx, x - w / 2, y - h / 2, w, h, 28); ctx.fill();
+      ctx.strokeStyle = lit > 0 ? C.lime : '#4a4744'; ctx.lineWidth = lit > 0 ? 8 : 4; rrect(ctx, x - w / 2 + 4, y - h / 2 + 4, w - 8, h - 8, 24); ctx.stroke();
       T(ctx, `0${i + 1}`, x - w / 2 + 30, y - h / 2 + 62, { size: 34, weight: 700, family: MONO, color: C.lime });
-      T(ctx, lab, x, y - 30, { size: fit(ctx, lab, w - 50, 50), align: 'center' });
+      T(ctx, lab, x, y - 30, { size: fit(ctx, lab, w - 50, 58), align: 'center' });
       [['T', tm, C.w], ['$', mn, C.lime]].forEach(([k, v, col], j) => {
         const by = y + 40 + j * 70, bx = x - w / 2 + 74, bw = w - 110;
         T(ctx, k, x - w / 2 + 32, by + 22, { size: 30, weight: 700, family: MONO, color: C.gray });
-        ctx.fillStyle = '#2a2a2a'; rrect(ctx, bx, by, bw, 26, 13); ctx.fill();
+        ctx.fillStyle = '#2e2b29'; rrect(ctx, bx, by, bw, 26, 13); ctx.fill();
         const f = v * E.outExpo(prog(t, 54.85 + i * .12, 55.4 + i * .12));
         if (f > 0) { ctx.fillStyle = col; rrect(ctx, bx, by, Math.max(26, bw * f), 26, 13); ctx.fill(); }
       });
@@ -609,11 +627,11 @@ function sA6(ctx, t, seg) {
     // question + strike
     const pq = prog(t, 55.95, 56.3);
     if (pq > 0) {
-      const s = '¿CUÁL ES LA CORRECTA?';
-      const sz = fit(ctx, s, 880, 66);
-      rise(ctx, s, 540, 790, { size: sz, align: 'center', track: 1, color: all > .5 ? C.gray : C.w }, t, 55.95);
-      ctx.save(); setF(ctx, sz, 900, DISP, 1); const w = tw(ctx, s, 1); ctx.restore();
-      ctx.fillStyle = C.lime; ctx.fillRect(540 - w / 2 - 16, 790 - sz * .32, (w + 32) * all, 12);
+      const s = '¿cuál es la correcta?';
+      const sz = fit(ctx, s, 880, 76);
+      rise(ctx, s, 540, 790, { size: sz, align: 'center', track: 0, color: all > .5 ? C.gray : C.w }, t, 55.95);
+      ctx.save(); setF(ctx, sz, 900, DISP, 0); const w = tw(ctx, s, 0); ctx.restore();
+      ctx.fillStyle = C.lime; ctx.fillRect(540 - w / 2 - 16, 790 - sz * .3, (w + 32) * all, 10);
     }
     ctx.restore();
   });
@@ -622,23 +640,23 @@ function sA6(ctx, t, seg) {
 function sB5(ctx, t, seg) {
   panelB(ctx, t, seg, () => {
     ctx.save(); punch(ctx, t, [[58.93, .9], [59.68, .6]], 540, 960);
-    rise(ctx, '¿EN QUÉ', 96, 450, { size: 150, track: -4, color: C.k }, t, 58.36);
+    rise(ctx, '¿en qué', 96, 450, { size: 160, track: -3, color: C.k }, t, 58.36);
     const pe = E.outExpo(prog(t, 58.9, 59.15));
-    const sz = 150;
-    ctx.save(); setF(ctx, sz, 900, DISP, -4); const we = tw(ctx, 'ETAPA', -4); ctx.restore();
-    block(ctx, 84, 486, we + 28, 158, pe, C.lime, 14);
-    rise(ctx, 'ETAPA', 96, 610, { size: sz, track: -4, color: C.k }, t, 58.88);
-    rise(ctx, 'ESTÁS?', 96, 770, { size: sz, track: -4, color: C.k }, t, 59.62);
+    const sz = 160;
+    ctx.save(); setF(ctx, sz, 900, DISP, -3); const we = tw(ctx, 'etapa', -3); ctx.restore();
+    block(ctx, 80, 486, we + 36, 178, pe, C.k, 16);
+    rise(ctx, 'etapa', 98, 620, { size: sz, track: -3, color: C.lime }, t, 58.88);
+    rise(ctx, 'estás?', 96, 800, { size: sz, track: -3, color: C.k }, t, 59.62);
     const steps = [['EMPEZANDO', 1440], ['CON INGRESOS', 1240], ['CRECIENDO', 1040]];
     const base = 1640;
     steps.forEach(([lab, top], i) => {
       const x = 96 + i * 296, w = 296;
       const p = E.outExpo(prog(t, 58.45 + i * .1, 58.85 + i * .1)); if (p <= 0) return;
       const yt = lerp(base, top, p);
-      ctx.fillStyle = i === 2 ? C.k : i === 1 ? '#2b2b2b' : '#4a4a4a';
+      ctx.fillStyle = i === 2 ? C.k : i === 1 ? '#2e2b29' : '#4a4744';
       ctx.fillRect(x, yt, w - 8, base - yt);
-      T(ctx, `0${i + 1}`, x + 24, yt + 52, { size: 32, weight: 700, family: MONO, color: C.lime });
-      T(ctx, lab, x + 24, yt + 104, { size: fit(ctx, lab, w - 50, 40), color: C.w });
+      T(ctx, `0${i + 1}`, x + 24, yt + 52, { size: 32, weight: 800, family: MONO, color: C.lime });
+      T(ctx, lab, x + 24, yt + 104, { size: fit(ctx, lab, w - 50, 46, 700, MONO, 2), weight: 700, family: MONO, track: 2, color: C.w });
     });
     // pin hops up the stairs
     const hops = [59.0, 59.3, 59.6];
@@ -654,7 +672,6 @@ function sB5(ctx, t, seg) {
       const k = E.outCubic(prog(lt, 0, .22));
       const x = lerp(prevx, px, k), y = lerp(prevy, py, k) - jump - drop - 16;
       pinIcon(ctx, x, y, 130, C.lime, C.k);
-      ctx.strokeStyle = C.k; ctx.lineWidth = 4; ctx.save(); ctx.beginPath(); ctx.arc(x, y - 130 * .55, 130 * .45, 0, TAU); ctx.stroke(); ctx.restore();
     }
     ctx.restore();
   });
@@ -716,10 +733,10 @@ function subtitles(ctx, t, seg) {
   ctx.save();
   // measure
   const items = ph.ws.map(w => {
-    const sz = w.emph ? size * (w.w === 'YA' ? 2.2 : 1.3) : size, wt = w.emph ? 900 : 700;
-    setF(ctx, sz, wt, DISP, -.5); return { w, sz, wt, width: tw(ctx, w.w, -.5) };
+    const sz = w.emph ? size * (w.w === 'YA' ? 2.2 : 1.3) : size, wt = 700, fam = w.emph ? DISP : MONO;
+    setF(ctx, sz, wt, fam, 0); return { w, sz, wt, fam, width: tw(ctx, w.w, 0) };
   });
-  const gap = size * .26;
+  const gap = size * .34;
   const total = items.reduce((a, b) => a + b.width, 0) + gap * (items.length - 1);
   // two lines if too wide
   let lines = [items];
@@ -736,13 +753,13 @@ function subtitles(ctx, t, seg) {
       const p = prog(t, a0, a0 + .22);
       if (p > 0) {
         const active = t >= w.s - .03 && t < w.e + .04 && !(w.i === ph.ws[ph.ws.length - 1].i && false);
-        const sc = (w.emph ? E.outBackBig(p) : E.outBack(p)) * (active ? 1.06 : 1);
+        const sc = (w.emph ? E.outBackBig(p) : E.outBack(p)) * (active ? 1.04 : 1);
         ctx.save();
         ctx.globalAlpha *= clamp(p * 2.5) * (1 - outP);
         const cx = x + it.width / 2, cy = y - it.sz * .34;
         ctx.translate(0, (1 - E.outCubic(p)) * 22 - (active ? 4 : 0));
         around(ctx, cx, cy, sc);
-        setF(ctx, it.sz, it.wt, DISP, -.5);
+        setF(ctx, it.sz, it.wt, it.fam, 0);
         if (!inPanel || inPanel < 1) { ctx.shadowColor = `rgba(0,0,0,${.55 * (1 - inPanel)})`; ctx.shadowBlur = 22; ctx.shadowOffsetY = 4; }
         ctx.fillStyle = active || w.emph ? C.lime : C.w;
         ctx.fillText(w.w, x, y);
@@ -794,8 +811,8 @@ function frame(i) {
   octx.putImageData(img, 0, 0);
 }
 window.ready = (async () => {
-  for (const w of [500, 700, 800, 900]) await document.fonts.load(`${w} 100px "Inter Display"`);
-  for (const w of [500, 700]) await document.fonts.load(`${w} 100px "JetBrains Mono"`);
+  await document.fonts.load('400 100px "Cal Sans"');
+  for (const w of [500, 600, 700, 800]) await document.fonts.load(`${w} 100px "Raleway"`);
   return true;
 })();
 window.renderFrame = i => { frame(i); return out.toDataURL('image/png'); };
