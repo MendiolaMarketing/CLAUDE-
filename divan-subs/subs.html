@@ -238,17 +238,70 @@ function sceneQue(ctx, t, f) {
   ], 690);
 }
 
-// 2 · necesitas acercarte e ir tras él — oliva, un punto persigue al otro
+// Siluetas corriendo hacia +x, con los pies en y=0. ph = fase de la zancada.
+function leg(ctx, x, y, ang, len, w) {
+  ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x, y);
+  const kx = x + Math.sin(ang) * len * .55, ky = y + Math.cos(ang) * len * .55;
+  ctx.lineTo(kx, ky); ctx.lineTo(kx + Math.sin(ang * .4) * len * .45, ky + Math.cos(ang * .4) * len * .45);
+  ctx.stroke();
+}
+function cat(ctx, ph, col, eye) {
+  const bob = -Math.abs(Math.sin(ph)) * 7, st = 1 + Math.sin(ph * 2) * .04;
+  ctx.save(); ctx.translate(0, bob);
+  ctx.fillStyle = ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // patas: delanteras y traseras en contrafase (galope)
+  [[44, ph], [36, ph + .5], [-42, ph + Math.PI], [-50, ph + Math.PI + .5]].forEach(([x, a]) => leg(ctx, x, -34, Math.sin(a) * .9, 40, 10));
+  // cola
+  ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(-56, -50);
+  ctx.bezierCurveTo(-86, -60, -96, -96 + Math.sin(ph) * 8, -122, -94 + Math.sin(ph + 1) * 12); ctx.stroke();
+  // cuerpo, cabeza, orejas, hocico
+  ctx.beginPath(); ctx.ellipse(-4, -46, 64 * st, 24, -.05, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(70, -64, 24, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(52, -78); ctx.lineTo(56, -106); ctx.lineTo(72, -86); ctx.closePath();
+  ctx.moveTo(70, -86); ctx.lineTo(88, -104); ctx.lineTo(90, -76); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(90, -56, 12, 9, 0, 0, 7); ctx.fill();
+  // ojo y bigotes
+  ctx.fillStyle = eye; ctx.beginPath(); ctx.ellipse(80, -68, 3.2, 4.5, 0, 0, 7); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2;
+  [[-8, -60], [0, -56], [8, -52]].forEach(([dy, ey]) => { ctx.beginPath(); ctx.moveTo(98, -56 + dy * .3); ctx.lineTo(124, ey + dy); ctx.stroke(); });
+  ctx.restore();
+}
+function mouse(ctx, ph, col, eye) {
+  const bob = -Math.abs(Math.sin(ph)) * 3;
+  ctx.save(); ctx.translate(0, bob);
+  ctx.fillStyle = ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  [[14, ph], [-14, ph + Math.PI]].forEach(([x, a]) => leg(ctx, x, -10, Math.sin(a) * 1, 14, 5));
+  // cola larga y ondulante
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-24, -14);
+  for (let i = 1; i <= 20; i++) ctx.lineTo(-24 - i * 3.4, -14 - i * .8 + Math.sin(ph * .7 - i * .45) * i * .45);
+  ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, -16, 27, 14, 0, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(14, -28); ctx.quadraticCurveTo(46, -22, 46, -14); ctx.quadraticCurveTo(36, -6, 14, -6); ctx.fill();
+  ctx.beginPath(); ctx.arc(18, -32, 10, 0, 7); ctx.fill();
+  ctx.fillStyle = eye;
+  ctx.beginPath(); ctx.arc(18, -32, 5, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(32, -20, 2.4, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+// 2 · necesitas acercarte e ir tras él — oliva, el gato persigue al ratón
 function sceneTras(ctx, t, f) {
-  const u = t - f.a, y = 560;
-  const path = s => [lerp(-80, W + 80, s), y + Math.sin(s * Math.PI * 2.2) * 70];
-  const lead = (u * .28 + .22), chase = lead - .1 - .03 * Math.sin(u * 3);
-  ctx.save(); ctx.setLineDash([3, 16]); ctx.lineCap = 'round'; ctx.strokeStyle = rgba(C.tcrema, .55); ctx.lineWidth = 4;
+  const u = t - f.a, y = 640;
+  const path = s => [lerp(-160, W + 160, s), y + Math.sin(s * Math.PI * 2.2) * 40];
+  const lead = u * .2 + .33, chase = lead - .27 - .025 * Math.sin(u * 3);
+  const s0 = Math.max(0, chase - .3);
+  ctx.save(); ctx.setLineDash([3, 16]); ctx.lineCap = 'round'; ctx.strokeStyle = rgba(C.tcrema, .4); ctx.lineWidth = 4;
   ctx.beginPath();
-  for (let s = Math.max(0, chase - .35); s <= lead; s += .005) { const [px, py] = path(s); s === Math.max(0, chase - .35) ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+  for (let s = s0; s <= lead; s += .005) { const [px, py] = path(s); s === s0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
   ctx.stroke(); ctx.restore();
-  let [lx, ly] = path(lead); ctx.fillStyle = C.tcrema; ctx.beginPath(); ctx.arc(lx, ly, 20, 0, 7); ctx.fill();
-  let [qx, qy] = path(chase); ctx.strokeStyle = C.tcrema; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(qx, qy, 26, 0, 7); ctx.stroke();
+  const put = (s, fn, ph, sc) => {
+    const [x0, y0] = path(s), [x1, y1] = path(s + .004);
+    ctx.save(); ctx.translate(x0, y0); ctx.rotate(Math.atan2(y1 - y0, x1 - x0) * .6); ctx.scale(sc, sc);
+    fn(ctx, ph, C.tcrema, C.oliva); ctx.restore();
+  };
+  put(lead, mouse, u * 34, 1.3);
+  put(chase, cat, u * 15, 1.1);
   setFont(ctx, sans(18, 500), 3); ctx.fillStyle = rgba(C.tcrema, .8); ctx.textAlign = 'center';
   ctx.globalAlpha = E.outCubic(prog(u, .1, .5));
   ctx.fillText('EL JUEGO DEL GATO Y EL RATÓN', CX, 380); ctx.globalAlpha = 1;
