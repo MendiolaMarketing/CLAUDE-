@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Textos Itard y Seguin</title>
+<style>
+@font-face{font-family:Poppins;font-weight:500;font-style:normal;src:url(fonts/poppins-500-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:600;font-style:normal;src:url(fonts/poppins-600-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:700;font-style:normal;src:url(fonts/poppins-700-normal.woff2)}
+@font-face{font-family:Poppins;font-weight:700;font-style:italic;src:url(fonts/poppins-700-italic.woff2)}
+:root{
+  --morado:#570861; --naranja:#DD6F4D; --verde:#6EB198; --azul:#4482BB; --rey:#17629E;
+  --crema:#FFF6EC; --terracota:#D75A3B; --durazno:#FF9F7E; --menta:#B6EBD3;
+}
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:transparent}
+body.preview{background:#00FF00}
+#stage{position:absolute;inset:0}
+/* bloque de texto: abajo a la izquierda, por encima de la zona segura inferior (420px) */
+.block{position:absolute;left:88px;bottom:470px;width:904px}
+.dashes{display:flex;gap:16px;margin:0 0 26px 6px;height:14px}
+.dash{height:14px;width:66px;border-radius:7px}
+.line{display:block;width:max-content;margin-top:12px;padding:6px 34px 12px;border-radius:30px;
+  font:700 76px/1.12 Poppins;letter-spacing:-0.01em;color:#fff;white-space:nowrap}
+.line span{display:inline-block}
+.kw{font-style:italic}
+.decor{position:absolute;overflow:visible}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+// ---------- escenas ----------
+// Duraciones a 30 fps: 00:00:01:18 = 48 f, 00:00:02:03 = 63 f, 00:00:02:30 = 90 f (3.0 s)
+const SCENES = [
+  { id:'01_primeros-pasos', frames:48, bg:'var(--morado)', accent:'#FF9F7E',
+    dashes:['var(--azul)','var(--verde)','var(--naranja)'],
+    lines:[['¿Ya dio sus'],[['primeros pasos','kw'],'?']], decor:'pasos' },
+  { id:'02_a-su-medida', frames:63, bg:'var(--terracota)', accent:'#570861',
+    dashes:['var(--crema)','var(--verde)','var(--azul)'],
+    lines:[['Es hora de descubrir'],['el mundo'],[['a su medida','kw']]], decor:'torre' },
+  { id:'03_curiosidad', frames:90, bg:'var(--rey)', accent:'#B6EBD3',
+    dashes:['var(--verde)','var(--naranja)','var(--crema)'],
+    lines:[['Un espacio seguro'],['para su ',['curiosidad','kw']]], decor:'globo' },
+];
+
+// ---------- utilidades ----------
+const FPS = 30;
+const clamp = (x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+// cubic-bezier(0.22, 1, 0.36, 1) de la guía de marca
+function bez(x1,y1,x2,y2){
+  const cx=3*x1,bx=3*(x2-x1)-cx,ax=1-cx-bx, cy=3*y1,by=3*(y2-y1)-cy,ay=1-cy-by;
+  const X=t=>((ax*t+bx)*t+cx)*t, Y=t=>((ay*t+by)*t+cy)*t, dX=t=>(3*ax*t+2*bx)*t+cx;
+  return x=>{ if(x<=0)return 0; if(x>=1)return 1; let t=x; for(let i=0;i<8;i++){t-=(X(t)-x)/dX(t);} return Y(clamp(t)); };
+}
+const ease = bez(0.22,1,0.36,1);
+const prog = (f,start,dur)=>ease(clamp((f-start)/dur));
+const mix = (a,b,t)=>a+(b-a)*t;
+function mixHex(a,b,t){
+  const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+  const A=p(a),B=p(b); return 'rgb('+A.map((v,i)=>Math.round(mix(v,B[i],t))).join(',')+')';
+}
+const NS='http://www.w3.org/2000/svg';
+const el=(tag,attrs={},parent)=>{const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);parent&&parent.appendChild(e);return e;};
+
+// ---------- construcción ----------
+let S, refs;
+function build(i){
+  S = SCENES[i];
+  const stage=document.getElementById('stage'); stage.innerHTML='';
+  const block=document.createElement('div'); block.className='block'; stage.appendChild(block);
+  const dashes=document.createElement('div'); dashes.className='dashes'; block.appendChild(dashes);
+  const dashEls=S.dashes.map(c=>{const d=document.createElement('div');d.className='dash';d.style.background=c;dashes.appendChild(d);return d;});
+  const lineEls=[], kwEls=[];
+  for(const parts of S.lines){
+    const ln=document.createElement('div'); ln.className='line'; ln.style.background=S.bg;
+    const inner=document.createElement('span');
+    for(const p of parts){
+      const s=document.createElement('span');
+      if(Array.isArray(p)){ s.textContent=p[0]; s.className=p[1]; kwEls.push(s); } else s.textContent=p;
+      s.style.display='inline'; inner.appendChild(s);
+    }
+    ln.appendChild(inner); block.appendChild(ln); lineEls.push({ln,inner});
+  }
+  refs={block,dashEls,lineEls,kwEls,decor:DECOR[S.decor].build(stage,block)};
+}
+
+// ---------- elementos Montessori ----------
+const DECOR = {
+  // huellitas que caminan en diagonal junto al texto
+  pasos:{
+    build(stage,block){
+      const svg=el('svg',{width:1080,height:1920,class:'decor',style:'left:0;top:0'}); stage.appendChild(svg);
+      const r=block.getBoundingClientRect();
+      const steps=[];
+      const n=5;
+      const ang=32, rad=ang*Math.PI/180, dx=Math.sin(rad), dy=-Math.cos(rad);
+      for(let k=0;k<n;k++){
+        const left=k%2===0, side=left?-1:1;
+        const x=620+dx*k*118+(-dy)*side*30, y=r.top-90+dy*k*118+dx*side*30;
+        const g=el('g',{},svg);
+        const foot=el('g',{transform:`rotate(${ang}) scale(${left?-1:1},1)`},g);
+        el('path',{d:'M2,-24 C14,-24 17,-6 14,10 C11,26 6,34 -1,34 C-11,34 -14,22 -13,8 C-12,-8 -10,-24 2,-24Z',fill:'#FFF6EC'},foot);
+        [[-8,-34,6.4],[2,-38,5.4],[10,-36,4.6],[16,-31,3.9],[19,-24,3.3]].forEach(([cx,cy,rr])=>el('circle',{cx,cy,r:rr,fill:'#FFF6EC'},foot));
+        steps.push({g,x,y});
+      }
+      return {steps};
+    },
+    draw(d,f){
+      d.steps.forEach((s,k)=>{
+        const t=prog(f,10+k*4,7);
+        const sc=mix(0.6,1,t)*1.35;
+        s.g.setAttribute('transform',`translate(${s.x},${s.y+mix(10,0,t)}) scale(${sc})`);
+        s.g.setAttribute('opacity',(t*0.92).toFixed(3));
+      });
+    }
+  },
+  // torre rosa: cubos graduados que se apilan uno a uno
+  torre:{
+    build(stage,block){
+      const svg=el('svg',{width:1080,height:1920,class:'decor',style:'left:0;top:0'}); stage.appendChild(svg);
+      const r=block.getBoundingClientRect();
+      const sizes=[92,78,64,50,36,24];
+      const cols=['#FFF6EC','#FF9F7E','#FFF6EC','#FF9F7E','#FFF6EC','#FF9F7E'];
+      const cx=880; let y=r.top-28; const cubes=[];
+      sizes.forEach((s,k)=>{
+        y-=s;
+        const g=el('g',{},svg);
+        el('rect',{x:-s/2,y:0,width:s,height:s,rx:Math.max(5,s*0.12),fill:cols[k]},g);
+        cubes.push({g,x:cx,y});
+        y-=4;
+      });
+      return {cubes};
+    },
+    draw(d,f){
+      d.cubes.forEach((c,k)=>{
+        const t=prog(f,9+k*3,8);
+        c.g.setAttribute('transform',`translate(${c.x},${c.y+mix(-60,0,t)})`);
+        c.g.setAttribute('opacity',t.toFixed(3));
+      });
+    }
+  },
+  // globo terráqueo Montessori que gira suave + destellos de curiosidad
+  globo:{
+    build(stage,block){
+      const svg=el('svg',{width:1080,height:1920,class:'decor',style:'left:0;top:0'}); stage.appendChild(svg);
+      const r=block.getBoundingClientRect();
+      const cx=850, cy=r.top-150, R=88;
+      const root=el('g',{},svg);
+      const defs=el('defs',{},svg);
+      const clip=el('clipPath',{id:'gclip'},defs); el('circle',{cx:0,cy:0,r:R},clip);
+      // soporte
+      el('path',{d:`M${-R-16},14 A${R+16},${R+16} 0 0 0 ${R*0.55},${R+6}`,fill:'none',stroke:'#FFF6EC','stroke-width':8,'stroke-linecap':'round',transform:'rotate(-20)'},root);
+      el('rect',{x:-12,y:R+18,width:24,height:26,rx:6,fill:'#FFF6EC'},root);
+      el('rect',{x:-56,y:R+40,width:112,height:18,rx:9,fill:'#FFF6EC'},root);
+      el('circle',{cx:0,cy:0,r:R,fill:'#4482BB',stroke:'#FFF6EC','stroke-width':7},root);
+      const land=el('g',{'clip-path':'url(#gclip)'},root);
+      const conts=[];
+      const shapes=[
+        'M0,-40 C22,-46 36,-30 30,-10 C26,4 34,18 22,34 C12,46 -4,38 -6,22 C-8,8 -22,0 -18,-18 C-15,-32 -8,-37 0,-40Z',
+        'M0,-24 C14,-26 20,-12 14,0 C10,10 2,14 -6,8 C-14,2 -12,-20 0,-24Z',
+        'M0,-14 C10,-14 14,-4 8,4 C2,10 -8,8 -10,0 C-11,-8 -6,-14 0,-14Z'
+      ];
+      const placed=[[0,-18,0],[60,40,2],[110,-30,1],[180,22,0],[240,-40,2],[290,30,1]];
+      placed.forEach(([lon,lat,s])=>{ const p=el('path',{d:shapes[s],fill:'#FFF6EC',opacity:0.95},land); conts.push({p,lon,lat}); });
+      // destellos
+      const sparks=[[-R-50,-R+10,1.7],[R+34,-R-24,1.3],[R+60,16,1]].map(([x,y,s])=>{
+        const g=el('g',{},root);
+        el('path',{d:'M0,-18 C2,-4 4,-2 18,0 C4,2 2,4 0,18 C-2,4 -4,2 -18,0 C-4,-2 -2,-4 0,-18Z',fill:'#B6EBD3'},g);
+        return {g,x,y,s};
+      });
+      return {root,cx,cy,R,conts,sparks};
+    },
+    draw(d,f){
+      const t=prog(f,8,9);
+      d.root.setAttribute('transform',`translate(${d.cx},${d.cy+mix(30,0,t)}) scale(${mix(0.85,1,t)})`);
+      d.root.setAttribute('opacity',t.toFixed(3));
+      const rot=f*1.6; // grados por cuadro: giro lento
+      d.conts.forEach(c=>{
+        const a=((c.lon+rot)%360)*Math.PI/180;
+        const x=Math.sin(a)*d.R*0.9, front=Math.cos(a);
+        const sx=Math.max(0.05,front);
+        c.p.setAttribute('transform',`translate(${x},${c.lat}) scale(${sx},1)`);
+        c.p.setAttribute('opacity',front>0?0.95:0);
+      });
+      d.sparks.forEach((s,k)=>{
+        const tk=prog(f,16+k*4,8);
+        const tw=1+0.12*Math.sin((f+k*11)/5);
+        s.g.setAttribute('transform',`translate(${s.x},${s.y}) scale(${s.s*tk*tw}) rotate(${(1-tk)*-45})`);
+        s.g.setAttribute('opacity',tk.toFixed(3));
+      });
+    }
+  }
+};
+
+// ---------- animación por cuadro ----------
+function draw(f){
+  const {dashEls,lineEls,kwEls,decor}=refs;
+  // guiones: crecen uno tras otro
+  dashEls.forEach((d,k)=>{ const t=prog(f,2+k*2.4,7.5); d.style.width=(66*t)+'px'; d.style.opacity=t>0?1:0; });
+  // listones de texto: barrido desde la izquierda + subida suave
+  lineEls.forEach(({ln,inner},k)=>{
+    const t=prog(f,k*3,10), ti=prog(f,k*3+2,9);
+    ln.style.clipPath=`inset(0 ${(1-t)*100}% 0 0 round 30px)`;
+    ln.style.transform=`translateY(${mix(24,0,t)}px)`;
+    ln.style.opacity=clamp(t*3);
+    inner.style.transform=`translateY(${mix(22,0,ti)}px)`;
+    inner.style.opacity=ti;
+  });
+  // palabra clave: de blanco a su color de resalte
+  const tk=prog(f,12,8);
+  kwEls.forEach(k=>k.style.color=mixHex('#FFFFFF',S.accent,tk));
+  DECOR[S.decor].draw(decor,f);
+  // vida sutil después de la entrada
+  const flo=Math.sin(f/12)*4*prog(f,20,14);
+  document.querySelectorAll('.decor').forEach(s=>s.style.transform=`translateY(${flo}px)`);
+}
+
+window.SCENES=SCENES;
+window.setup=async i=>{ await document.fonts.ready; await Promise.all(['500 10px Poppins','700 10px Poppins','italic 700 10px Poppins'].map(x=>document.fonts.load(x))); build(i); draw(0); return SCENES[i].frames; };
+window.draw=draw;
+// vista previa en navegador: textos.html?s=0  (con fondo verde y en bucle)
+if(location.search.includes('s=')){
+  document.body.classList.add('preview');
+  const i=+new URLSearchParams(location.search).get('s');
+  setup(i).then(n=>{let f=0;setInterval(()=>{draw(f);f=(f+1)%(n+15);},1000/FPS);});
+}
+</script>
+</body>
+</html>
