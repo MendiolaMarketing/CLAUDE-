@@ -1,5 +1,7 @@
-// Uso: node render.mjs            -> renderiza las 3 escenas (MP4 fondo verde + MOV ProRes 4444 con alfa)
-//      node render.mjs stills     -> cuadros de prueba en ./stills
+// Uso: node render.mjs [video|stills] [id...]
+//      video  -> MP4 fondo verde + MOV ProRes 4444 con alfa en ./render (por defecto, todas las escenas)
+//      stills -> cuadros de prueba en ./stills
+//      id     -> solo las escenas cuyo id empiece así, ej. node render.mjs video 04
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -7,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const mode = process.argv[2] || 'video';
+const [mode = 'video', ...only] = process.argv.slice(2);
 const out = path.join(here, mode === 'stills' ? 'stills' : 'render');
 mkdirSync(out, { recursive: true });
 
@@ -26,6 +28,7 @@ const ffmpeg = args => {
 
 for (let i = 0; i < scenes.length; i++) {
   const { id, frames } = scenes[i];
+  if (only.length && !only.some(o => id.startsWith(o))) continue;
   await page.evaluate(i => window.setup(i), i);
   if (mode === 'stills') {
     for (const f of [0, 4, 8, 12, 18, 30, frames - 1])
